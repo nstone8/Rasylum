@@ -1,6 +1,3 @@
-                                        #Rasylum version 0.1.0. Last modified on 2/20/2017 by Nick Stone
-
-
 saveFigs = function(folder, names, figures){
     graphics.off()
                                         #figures must be a list of figure objects
