@@ -1,40 +1,3 @@
-saveFigs = function(folder, names, figures){
-    graphics.off()
-                                        #figures must be a list of figure objects
-    if(regexpr("/$", folder)==-1){
-        folder=paste(folder,"/",sep="")
-    }
-    if(length(names)!=length(figures)){
-        print("Number of names and figures don't match")
-        return(FALSE)
-    }
-    for(i in 1:length(names)){
-        name=names[i]
-        if(regexpr("\\.",name)==-1){ #No file extension
-            name=paste(name,".pdf",sep="")
-        }
-        pdf(paste(folder,name,sep=""))
-        print(figures[[i]])
-        dev.off()
-    }
-}
-
-saveCurves = function(folder, basename, curves){
-                                        #Curves is a list of curve objects created by the extractStiffness functions
-    graphics.off()
-    library(ggplot2)
-    if(regexpr("/$", folder)==-1){
-        folder=paste(folder,"/",sep="")
-    }
-    for(i in 1:length(curves)){
-        name=paste(basename,i,".pdf",sep="")
-        plot=ggplot(curves[[i]],aes(x=zPos,y=F,color=curve))+geom_line()+labs(title=name)
-        pdf(paste(folder,name,sep=""))
-        print(plot)
-        dev.off()
-    }
-}
-
 saveFits=function(filename,fitData){
                                         #FitData should be a object created by parExtractStiffness
     graphics.off()
@@ -300,65 +263,6 @@ stiffnessSphereOnSphere=function(rBead, extZ, extForce,percentToFit=.1){
     plotData=rbind(data.frame(zPos=extZ, F=extForce, curve="measured"),fitCurve)
 
     return(list(fit=bestValues,curves=plotData,conv=result$convInfo$isConv))
-}
-
-batchExtractStiffness=function(rBead, frame, zPos, force, identifiers, CPMaxF=.05, percentToFit=.1){
-                                        #Extract info from multiple curves. frame should be a data frame containing all the data, and zPos and force should be the names of the columns corresponding to those variables. identifiers should be a vector of row names whose values uniquely identify each curve
-
-    identifierIter=list()
-    identifierIterLength=0
-    for(ident in identifiers){
-        identifierIterLength=identifierIterLength+1
-        frame[,ident]=factor(frame[,ident])
-        identifierIter[[identifierIterLength]]=list(name=ident,index=1,values=levels(frame[,ident]))
-    }
-    doneIterating=FALSE
-    results=list(values=data.frame(), curves=list())
-    while(!doneIterating){
-        thisCurve=data.frame(frame)
-                                        #print(paste("Initial Size",dim(thisCurve)))        
-        for(id in identifierIter){#Select Values corresponding to this iteration
-            if(all(dim(thisCurve)>0)){
-                print(paste(id$name,id$values[id$index]))
-                thisCurve=thisCurve[thisCurve[id$name]==id$values[id$index],]
-            }
-                                        #print(paste("trimming... size=",dim(thisCurve)))
-        }
-                                        #Get the data for this iteration and add it to our results
-                                        #return(list(iter=identifierIter,curve=thisCurve))
-        if(is.numeric(dim(thisCurve)) && !any(is.na(thisCurve))){
-            thisCurveSize=dim(thisCurve)
-                                        #print(paste("this curve's size=",thisCurveSize))
-            if(all(thisCurveSize>0)){
-                thisCurve=stripRet(thisCurve,zPos)
-                thisRowFit=stiffnessSphereOnPlane(rBead,thisCurve[zPos][,],thisCurve[force][,],CPmaxF,percentToFit)
-                thisRowValues=thisRowFit$fit
-                for(id in identifierIter){#Build new row
-                    thisRowValues=cbind(thisRowValues,data.frame(id$values[id$index]))
-                    names(thisRowValues)[length(names(thisRowValues))]=id$name
-                }
-                results$values=rbind(results$values,thisRowValues)
-                results$curves[[length(results$curves)+1]]=thisRowFit$curves
-            }
-        }
-                                        #increment iterator
-        identifierIter[[1]]$index=identifierIter[[1]]$index+1
-        if(length(identifierIter)>1){
-            for(i in 2:length(identifierIter)){
-                if(identifierIter[[i-1]]$index>length(identifierIter[[i-1]]$values)){ #if the last value has rolled over, reset it and increment this one
-                    identifierIter[[i-1]]$index=1
-                    identifierIter[[i]]$index=identifierIter[[i]]$index+1
-                }
-            }
-        }
-                                        #Check if we've done all iterations of last value
-
-        if(identifierIter[[length(identifierIter)]]$index>length(identifierIter[[length(identifierIter)]]$values)){
-            doneIterating=TRUE
-        }
-    }
-    print("Done!")
-    return(results)
 }
 
 identIterate=function(frame,identifiers){
