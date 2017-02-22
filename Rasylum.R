@@ -412,7 +412,7 @@ fixFlatFits=function(fits, minRise=.1,debug=FALSE){
     return(fits)
 }
 
-extractTimeConst=function(frame, time, force,zPos){
+extractTimeConst=function(frame, time, force, zPos){
                                         #frame is the raw data for the compression as produced by the loadIBW function
     ret=stripExt(frame,zPos)
     decayData=data.frame(t=ret[,time],F=ret[,force],F0=ret[1,force])
@@ -422,4 +422,23 @@ extractTimeConst=function(frame, time, force,zPos){
     model=data.frame(t=decayData$t,F=ret[1,force]*exp(decayData$t/fitData$tau)+fitData$C,curve="model")
     
     return(list(fit=fitData,curves=rbind(measured,model)))
+}
+
+parExtractTimeConst=function(cases, time, force, zPos, debug=FALSE){
+    library(parallel)
+
+    parFun=function(case){
+        print(case$ident)
+        toReturn=extractTimeConst(case$data, time, force, zPos)
+        return(list(fit=toReturn,ident=case$ident))
+    }
+
+    if(debug){
+        for(ca in cases){
+            parFun(ca)
+        }
+    }
+    fits=mclapply(cases,parFun,mc.cores=detectCores())
+    return(list(fits=fits, time=time, force=force, zPos=zPos))
+    
 }
