@@ -412,6 +412,14 @@ fixFlatFits=function(fits, minRise=.1,debug=FALSE){
     return(fits)
 }
 
-extractTimeConst=function(frame, time, force){
-
+extractTimeConst=function(frame, time, force,zPos){
+                                        #frame is the raw data for the compression as produced by the loadIBW function
+    ret=stripExt(frame,zPos)
+    decayData=data.frame(t=ret[,time],F=ret[,force],F0=ret[1,force])
+    decayFit=nls("F=F0*exp(t/tau)+C",decayData)
+    fitData=data.frame(residual=sum(residuals(decayFit)^2),tau=as.numeric(coef(decayFit)["tau"]),C=as.numeric(coef(decayFit)["C"]),converged=decayFit$convInfo$isConv)
+    measured=data.frame(t=decayData$t,F=decayData$F,curve="measured")
+    model=data.frame(t=decayData$t,F=ret[1,force]*exp(decayData$t/fitData$tau)+fitData$C,curve="model")
+    
+    return(list(fit=fitData,curves=rbind(measured,model)))
 }
