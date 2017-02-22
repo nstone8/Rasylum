@@ -64,9 +64,19 @@ stripRet=function(frame,zPos){
     startPoint=which.min(as.numeric(zData[1:endPoint,]))
     return(frame[startPoint:endPoint,])
 }
+
+stripExt=function(frame,zPos){
+                                        #Strip the extension curve from imported ibw data stored in frame (a data frame) zPos should be the column of that frame corresponding to the position of the z piezo (deflection would also probably work)
+    zData=frame[zPos]
+                                        #remove extract curve and any tail at the start of the extension
+    startPoint=which.max(as.numeric(zData[,]))
+    return(frame[startPoint:length(zData),])
+}
+
 loadIBW = function(wave){
     library(IgorR)
     waveData=read.ibw(wave)
+    sampleTime=attr(waveData,"WaveHeader")$sfA[1]
     notes=strsplit(attr(waveData,"Note"),"\\r")[[1]]
     inVols=notes[regexpr("^InvOLS:",notes)!=-1]
     k=notes[regexpr("^SpringConstant:",notes)!=-1]
@@ -75,10 +85,7 @@ loadIBW = function(wave){
     k=as.numeric(substr(k,regexpr(":",k)+1,nchar(k)))
                                         #Force=k*defl (the software has already taken the invOLS into account)
     
-    return(list(zSensr=as.numeric(waveData[,3]), rawZSensr=as.numeric(waveData[,1]),defl=as.numeric(waveData[,2]), force=k*waveData[,2],filename=wave, inVols=inVols, k=k))
-    
-    
-    return(collatedData)
+    return(list(t=c(0:(dim(waveData)[1]-1))*sampleTime,zSensr=as.numeric(waveData[,3]), rawZSensr=as.numeric(waveData[,1]),defl=as.numeric(waveData[,2]), force=k*waveData[,2],filename=wave, inVols=inVols, k=k))
 
 }
 
@@ -384,7 +391,6 @@ fixFlatFits=function(fits, minRise=.1,debug=FALSE){
                 print("Fit changed")
                 allFits$fits[[i]]$fit=newFit
                 checkFit(i,allFits) #continue checking this fit until it stops changing
-                
             }
             
         }
@@ -404,4 +410,8 @@ fixFlatFits=function(fits, minRise=.1,debug=FALSE){
         }
     }
     return(fits)
+}
+
+extractTimeConst=function(frame, time, force){
+
 }
