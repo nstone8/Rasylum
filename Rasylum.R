@@ -1,5 +1,27 @@
-saveFits=function(filename,fitData){
-                                        #FitData should be a object created by parExtractStiffness
+                                        #Version 0.1.2
+
+buildFrame=function(dataList){
+    library(data.table)
+    dataTable=as.data.table(matrix(nrow=dataList$numRows, ncol=length(dataList$data[[1]])))
+    print("created table")
+                                        #Replace columns so they have the correct type
+    colNames=names(dataList$data[[1]])
+    names(dataTable)=colNames
+    for(j in 1:dim(dataList$data[[1]])[2]){
+        print(paste("j=",j))
+        dataTable[,as.integer(j):=rep(dataList$data[[1]][1,j],dataList$numRows)]
+    }
+    print("allocated")
+    curRow=1
+    for(i in 1:length(dataList$data)){
+        dataTable[curRow:(curRow+dim(dataList$data[[i]])[1]-1),names(dataTable):=dataList$data[[i]]]
+        curRow=curRow+dim(dataList$data[[i]])[1]-1
+    }
+    return(dataTable)
+}
+
+saveFits=function(filename,fitData, x="zPos", y="F"){
+                                        #FitData should be a object created by parExtractStiffness or parExtractTimeConst
     graphics.off()
     library(ggplot2)
     pdf(filename)
@@ -12,7 +34,8 @@ saveFits=function(filename,fitData){
         for(i in 1:length(fields)){
             name=paste(name,fields[i],id[1,fields[i]])
         }
-        plot=ggplot(curve,aes(x=zPos,y=F,color=curve))+geom_line()+labs(title=name)
+        newCurve=data.frame(x=curve[,x],y=curve[,y], curve=curve$curve)
+        plot=ggplot(newCurve,aes(x=x,y=y,color=curve))+geom_line()+labs(title=name)
         
         print(plot)
         print(name)
@@ -73,7 +96,7 @@ stripExt=function(frame,zPos){
     return(frame[startPoint:length(zData),])
 }
 
-loadIBW = function(wave){
+loadIBW = function(wave,asDataFrame=FALSE){
     library(IgorR)
     waveData=read.ibw(wave)
     sampleTime=attr(waveData,"WaveHeader")$sfA[1]
@@ -84,9 +107,11 @@ loadIBW = function(wave){
     inVols=as.numeric(substr(inVols,regexpr(":",inVols)+1,nchar(inVols)))
     k=as.numeric(substr(k,regexpr(":",k)+1,nchar(k)))
                                         #Force=k*defl (the software has already taken the invOLS into account)
-    
-    return(list(t=c(0:(dim(waveData)[1]-1))*sampleTime,zSensr=as.numeric(waveData[,3]), rawZSensr=as.numeric(waveData[,1]),defl=as.numeric(waveData[,2]), force=k*waveData[,2],filename=wave, inVols=inVols, k=k))
-
+    if(asDataFrame){
+        return(data.frame(t=c(0:(dim(waveData)[1]-1))*sampleTime,zSensr=as.numeric(waveData[,3]), rawZSensr=as.numeric(waveData[,1]),defl=as.numeric(waveData[,2]), force=k*waveData[,2],filename=wave, inVols=inVols, k=k))
+    }else{
+        return(list(t=c(0:(dim(waveData)[1]-1))*sampleTime,zSensr=as.numeric(waveData[,3]), rawZSensr=as.numeric(waveData[,1]),defl=as.numeric(waveData[,2]), force=k*waveData[,2],filename=wave, inVols=inVols, k=k))
+    }
 }
 
 findLocalMinima=function(vec, roughness,Q,approachTrim){
@@ -163,8 +188,10 @@ batchLoad=function(folder,consts,suffix){
     }
     pat=paste(pat,suffix,"$",sep="")
     filenames=list.files(folder,pat)
-    data=data.frame()
+    data=list()
+    lengthData=0
     fileNo=1
+    totalNumRows=0
     for(f in filenames){
         print(paste(fileNo/length(filenames)*100,"% complete",sep=""))
         fileNo=fileNo+1
@@ -174,15 +201,17 @@ batchLoad=function(folder,consts,suffix){
         for(i in 1:(length(delims)-1)){
             vars[i]=substr(f,regexpr(delims[i],f)+nchar(delims[i]),regexpr(delims[i+1],f)-1)
         }
-        unlabeledData=loadIBW(paste(folder,f,sep=""))
+        unlabeledData=loadIBW(paste(folder,f,sep=""),TRUE)
         newcol=data.frame(vars[1])
         for(v in 2:length(vars)){
             newcol=cbind(newcol,vars[v])
         }
         names(newcol)=consts
-        data=rbind(data,cbind(unlabeledData,newcol))
+        totalNumRows=totalNumRows+dim(unlabeledData)[1]
+        lengthData=lengthData+1        
+        data[[lengthData]]=cbind(unlabeledData,newcol)
     }
-    return(data)
+    return(list(data=data,numRows=totalNumRows))
 }
 
 stiffnessSphereOnPlane=function(rBead, extZ, extForce, CPMaxF=.05, percentToFit=.1, roughness=.01, Q=.5, approachTrim=.1, debug=FALSE){
