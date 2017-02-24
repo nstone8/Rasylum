@@ -1,21 +1,22 @@
                                         #Version 0.1.2
 
-buildFrame=function(dataList){
+buildFrame=function(dataList, numRows){
     library(data.table)
-    dataTable=as.data.table(matrix(nrow=dataList$numRows, ncol=length(dataList$data[[1]])))
-    print("created table")
+    dataTable=as.data.table(matrix(nrow=numRows, ncol=length(dataList[[1]])))
+    print("Allocated table")
                                         #Replace columns so they have the correct type
-    colNames=names(dataList$data[[1]])
+    colNames=names(dataList[[1]])
     names(dataTable)=colNames
-    for(j in 1:dim(dataList$data[[1]])[2]){
-        print(paste("j=",j))
-        dataTable[,as.integer(j):=rep(dataList$data[[1]][1,j],dataList$numRows)]
+    numCol=dim(dataList[[1]])[2]
+    for(j in 1:numCol){
+        print(paste((j/numCol)*100,"% Types Defined",sep=""))
+        dataTable[,as.integer(j):=rep(dataList[[1]][1,j],numRows)]
     }
-    print("allocated")
     curRow=1
-    for(i in 1:length(dataList$data)){
-        dataTable[curRow:(curRow+dim(dataList$data[[i]])[1]-1),names(dataTable):=dataList$data[[i]]]
-        curRow=curRow+dim(dataList$data[[i]])[1]-1
+    for(i in 1:length(dataList)){
+        print(paste((i/length(dataList))*100,"% Written",sep=""))
+        dataTable[curRow:(curRow+dim(dataList[[i]])[1]-1),names(dataTable):=dataList[[i]]]
+        curRow=curRow+dim(dataList[[i]])[1]-1
     }
     return(dataTable)
 }
@@ -25,8 +26,8 @@ saveFits=function(filename,fitData, x="zPos", y="F"){
     graphics.off()
     library(ggplot2)
     pdf(filename)
-    for(j in 1:length(fitData$fit)){
-        fit=fitData$fit[[j]]
+    for(j in 1:length(fitData$fits)){
+        fit=fitData$fits[[j]]
         curve=fit$fit$curves
         id=fit$ident
         fields=names(id)
@@ -81,19 +82,23 @@ normalizeFrame=function(frame,column,identifiers,wrt,value="lowest"){
 
 stripRet=function(frame,zPos){
                                         #Strip the retraction curve from imported ibw data stored in frame (a data frame) zPos should be the column of that frame corresponding to the position of the z piezo (deflection would also probably work)
-    zData=frame[zPos]
+    zData=frame[,zPos]
                                         #remove retract curve and any tail at the start of the extension
-    endPoint=which.max(as.numeric(zData[,]))
-    startPoint=which.min(as.numeric(zData[1:endPoint,]))
+    endPoint=which.max(zData)
+    startPoint=which.min(zData[1:endPoint])
     return(frame[startPoint:endPoint,])
 }
 
-stripExt=function(frame,zPos){
+getDwell=function(frame,dwellTime,zPos,F,t){
                                         #Strip the extension curve from imported ibw data stored in frame (a data frame) zPos should be the column of that frame corresponding to the position of the z piezo (deflection would also probably work)
-    zData=frame[zPos]
                                         #remove extract curve and any tail at the start of the extension
-    startPoint=which.max(as.numeric(zData[,]))
-    return(frame[startPoint:length(zData),])
+    startPoint=which.max(frame[,F])
+    #startPoint=which.min(abs(frame[startPoint:length(frame[,1]),F]-0.99*max(frame[startPoint:length(frame[,1]),F])))
+    tStart=frame[startPoint,t]
+    tEnd=tStart+dwellTime
+    endPoint=which.min(abs(frame[,t]-tEnd))
+    endPoint=floor(1*endPoint)
+    return(frame[startPoint:endPoint,])
 }
 
 loadIBW = function(wave,asDataFrame=FALSE){
@@ -103,14 +108,16 @@ loadIBW = function(wave,asDataFrame=FALSE){
     notes=strsplit(attr(waveData,"Note"),"\\r")[[1]]
     inVols=notes[regexpr("^InvOLS:",notes)!=-1]
     k=notes[regexpr("^SpringConstant:",notes)!=-1]
+    dwell=notes[regexpr("^DwellTime:",notes)!=-1]
                                         #Strip labels
     inVols=as.numeric(substr(inVols,regexpr(":",inVols)+1,nchar(inVols)))
     k=as.numeric(substr(k,regexpr(":",k)+1,nchar(k)))
+    dwell=as.numeric(substr(dwell,regexpr(":",dwell)+1,nchar(dwell)))
                                         #Force=k*defl (the software has already taken the invOLS into account)
     if(asDataFrame){
-        return(data.frame(t=c(0:(dim(waveData)[1]-1))*sampleTime,zSensr=as.numeric(waveData[,3]), rawZSensr=as.numeric(waveData[,1]),defl=as.numeric(waveData[,2]), force=k*waveData[,2],filename=wave, inVols=inVols, k=k))
+        return(data.frame(t=c(0:(dim(waveData)[1]-1))*sampleTime,zSensr=as.numeric(waveData[,3]), rawZSensr=as.numeric(waveData[,1]),defl=as.numeric(waveData[,2]), force=k*waveData[,2],filename=wave, inVols=inVols, k=k, dwell=dwell))
     }else{
-        return(list(t=c(0:(dim(waveData)[1]-1))*sampleTime,zSensr=as.numeric(waveData[,3]), rawZSensr=as.numeric(waveData[,1]),defl=as.numeric(waveData[,2]), force=k*waveData[,2],filename=wave, inVols=inVols, k=k))
+        return(list(t=c(0:(dim(waveData)[1]-1))*sampleTime,zSensr=as.numeric(waveData[,3]), rawZSensr=as.numeric(waveData[,1]),defl=as.numeric(waveData[,2]), force=k*waveData[,2],filename=wave, inVols=inVols, k=k,dwell=dwell))
     }
 }
 
@@ -301,8 +308,12 @@ stiffnessSphereOnSphere=function(rBead, extZ, extForce,percentToFit=.1){
     return(list(fit=bestValues,curves=plotData,conv=result$convInfo$isConv))
 }
 
-identIterate=function(frame,identifiers){
+identIterate=function(frame,identifiers,numCores=-1){
+    frame=as.data.frame(frame)
     library(parallel)
+    if(numCores<0){
+        numCores=detectCores()
+    }
     identifierIter=list()
     identifierIterLength=0
     identNames=c()
@@ -342,25 +353,29 @@ identIterate=function(frame,identifiers){
         }
     }
     trimDown=function(values){
-        thisCurve=data.frame(frame)  
+        thisCurveBool=rep(TRUE,dim(frame)[1])
         for(i in 1:length(values)){#Select Values corresponding to this iteration
-            if(all(dim(thisCurve)>0)){
-                thisCurve=thisCurve[thisCurve[,names(values)[i]]==as.character(values[1,i]),]
+            thisCurveBool=thisCurveBool & (frame[,names(values)[i]]==as.character(values[1,i]))
 
-            }
         }
+        thisCurve=frame[thisCurveBool,]
                                         #Get the data for this iteration and add it to our results
         if(is.numeric(dim(thisCurve)) && !any(is.na(thisCurve))){
             thisCurveSize=dim(thisCurve)
             if(all(thisCurveSize>0)){
-                
                 return(list(data=thisCurve,ident=values))
             }
         }
     }
-    toRun=mclapply(allOptions,trimDown,mc.cores=detectCores())
+    print(paste("length allOptions=",length(allOptions)))
+    toRun=mclapply(allOptions,trimDown,mc.cores=numCores)
     output=list()
     outputLength=0
+    print(paste("length toRun=",length(toRun)))
+    if(length(toRun)!=length(allOptions)){
+        print(paste("Parallel processing has resulted in dropped values, try again with a value of numCores smaller than",numCores))
+        return(FALSE)
+    }
     for(i in 1:length(toRun)){
         if(!is.null(toRun[[i]])){
             outputLength=outputLength+1
@@ -441,24 +456,35 @@ fixFlatFits=function(fits, minRise=.1,debug=FALSE){
     return(fits)
 }
 
-extractTimeConst=function(frame, time, force, zPos){
+extractTimeConst=function(frame, time="t", force="force", zPos="zSensr", dwellTime="dwell", debug=FALSE){
                                         #frame is the raw data for the compression as produced by the loadIBW function
-    ret=stripExt(frame,zPos)
-    decayData=data.frame(t=ret[,time],F=ret[,force],F0=ret[1,force])
-    decayFit=nls("F=F0*exp(t/tau)+C",decayData)
-    fitData=data.frame(residual=sum(residuals(decayFit)^2),tau=as.numeric(coef(decayFit)["tau"]),C=as.numeric(coef(decayFit)["C"]),converged=decayFit$convInfo$isConv)
+    if(debug){
+        library(ggplot2)
+    }
+    ret=getDwell(frame,frame[1,dwellTime],zPos,force,time)
+    decayData=data.frame(t=ret[,time]-ret[1,time],F=ret[,force],FZero=ret[1,force],zPos=ret[,zPos])
+    decayFit=nls("F ~ FZero*exp(-1*(t+t0)*tau) + C",decayData,start=c(tau=1,C=1,t0=1),control=nls.control(warnOnly=TRUE))
+    fitData=data.frame(residual=sum(residuals(decayFit)^2),tau=as.numeric(coef(decayFit)["tau"]),C=as.numeric(coef(decayFit)["C"]),t0=as.numeric(coef(decayFit)["t0"]),converged=decayFit$convInfo$isConv)
     measured=data.frame(t=decayData$t,F=decayData$F,curve="measured")
-    model=data.frame(t=decayData$t,F=ret[1,force]*exp(decayData$t/fitData$tau)+fitData$C,curve="model")
+    model=data.frame(t=decayData$t,F=ret[1,force]*exp(-1*(decayData$t+fitData$t0)*fitData$tau)+fitData$C,curve="model")
+    if(debug){
+        dev.new()
+        p=ggplot(rbind(measured,model))+geom_path(aes(x=t,y=F,color=curve))
+        print(p)
+        readline()
+        dev.off()
+    }
     
     return(list(fit=fitData,curves=rbind(measured,model)))
 }
 
-parExtractTimeConst=function(cases, time, force, zPos, debug=FALSE){
+parExtractTimeConst=function(cases, time="t", force="force", zPos="zSensr", dwell="dwell", debug=FALSE, numCores=-1){
     library(parallel)
-
+    if(numCores<0){
+        numCores=detectCores()
+    }
     parFun=function(case){
-        print(case$ident)
-        toReturn=extractTimeConst(case$data, time, force, zPos)
+        toReturn=extractTimeConst(case$data, time, force, zPos, dwell, debug)
         return(list(fit=toReturn,ident=case$ident))
     }
 
@@ -466,8 +492,13 @@ parExtractTimeConst=function(cases, time, force, zPos, debug=FALSE){
         for(ca in cases){
             parFun(ca)
         }
+    }else{
+        fits=mclapply(cases,parFun,mc.cores=detectCores())
+        }
+    if(length(fits)!=length(cases)){
+        print(paste("Not enough RAM for all cores, try again with numCores<",numCores,sep=""))
+        return(FALSE)
     }
-    fits=mclapply(cases,parFun,mc.cores=detectCores())
     return(list(fits=fits, time=time, force=force, zPos=zPos))
     
 }

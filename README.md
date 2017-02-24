@@ -6,3 +6,4 @@ Dependencies: (all dependencies are available on CRAN)
 ggplot2
 IgorR
 parallel
+data.table
