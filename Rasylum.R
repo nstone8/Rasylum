@@ -493,7 +493,7 @@ parExtractTimeConst=function(cases, time="t", force="force", zPos="zSensr", dwel
             parFun(ca)
         }
     }else{
-        fits=mclapply(cases,parFun,mc.cores=detectCores())
+        fits=mclapply(cases,parFun,mc.cores=numCores)
         }
     if(length(fits)!=length(cases)){
         print(paste("Not enough RAM for all cores, try again with numCores<",numCores,sep=""))
