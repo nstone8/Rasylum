@@ -16,7 +16,7 @@ buildFrame=function(dataList, numRows){
     for(i in 1:length(dataList)){
         print(paste((i/length(dataList))*100,"% Written",sep=""))
         dataTable[curRow:(curRow+dim(dataList[[i]])[1]-1),names(dataTable):=dataList[[i]]]
-        curRow=curRow+dim(dataList[[i]])[1]-1
+        curRow=curRow+dim(dataList[[i]])[1]
     }
     return(dataTable)
 }
@@ -222,6 +222,7 @@ batchLoad=function(folder,consts,suffix){
 }
 
 stiffnessSphereOnPlane=function(rBead, extZ, extForce, CPMaxF=.05, percentToFit=.1, roughness=.01, Q=.5, approachTrim=.1, debug=FALSE){
+    library(data.table)
     if(debug){
         library(ggplot2)
     }
@@ -238,21 +239,29 @@ stiffnessSphereOnPlane=function(rBead, extZ, extForce, CPMaxF=.05, percentToFit=
         }
     }
     eq="F~(4/3)*EStar*(r^(1/2))*indent^(3/2)"
-    fits=data.frame()
     lengthForce=length(extForce)
                                         #        allFits=c() #Delete later
     fitLength=floor(lengthForce*percentToFit)
     stopIndex=lengthForce-fitLength+1
+    numRow=min(stopIndex,roughCPIndex)
+    fits=data.table(contactIndex=rep(-1,times=numRow),contactPos=rep(-1,times=numRow),contactForce=rep(-1,times=numRow),residual=rep(-1,times=numRow), sigma=rep(-1,times=numRow),EStar=rep(-1,times=numRow),converged=rep(FALSE,times=numRow))
+    curRow=0
                                         #print(paste("fit Length=",fitLength,sep=""))
 
-    for(i in 1:min(stopIndex,roughCPIndex)){
+    for(i in 1:numRow){
                                         #Perform fits at each point, assuming F[i]=0 and indent[i]=0
         
         contactData=data.frame(indent=extZ[i:(i+fitLength-1)]-extZ[i],F=extForce[i:(i+fitLength-1)]-extForce[i],r=rep(rBead,times=fitLength))
         if(all(contactData$indent>=0)){
             result=nls(eq,contactData,control=nls.control(warnOnly=TRUE))
-
-            fits=rbind(fits,data.frame(contactIndex=i,contactPos=extZ[i],contactForce=extForce[i],residual=sum(residuals(result)^2), sigma=summary(result)$sigma,EStar=as.numeric(coef(result)["EStar"]),converged=result$convInfo$isConv))
+            curRow=+1
+            fits[curRow,contactIndex:=i]
+            fits[curRow,contactPos:=extZ[i]]
+            fits[curRow,contactForce:=extForce[i]]
+            fits[curRow,residual:=sum(residuals(result)^2)]
+            fits[curRow,sigma:=summary(result)$sigma]
+            fits[curRow,EStar:=as.numeric(coef(result)["EStar"])]
+            fits[curRow,converged:=result$convInfo$isConv]
         }
     }                           
     bestValues=fits[which.min(fits$residual),] #default option
@@ -463,16 +472,15 @@ extractTimeConst=function(frame, time="t", force="force", zPos="zSensr", dwellTi
     }
     ret=getDwell(frame,frame[1,dwellTime],zPos,force,time)
     decayData=data.frame(t=ret[,time]-ret[1,time],F=ret[,force],FZero=ret[1,force],zPos=ret[,zPos])
-    decayFit=nls("F ~ FZero*exp(-1*(t+t0)*tau) + C",decayData,start=c(tau=1,C=1,t0=1),control=nls.control(warnOnly=TRUE))
-    fitData=data.frame(residual=sum(residuals(decayFit)^2),tau=as.numeric(coef(decayFit)["tau"]),C=as.numeric(coef(decayFit)["C"]),t0=as.numeric(coef(decayFit)["t0"]),converged=decayFit$convInfo$isConv)
+    print(paste("FZero=",decayData$FZero[1]))
+    decayFit=nls("F ~ (FZero-C)*exp(-1*t*tau) + C",decayData,start=c(tau=1,C=1),control=nls.control(warnOnly=TRUE))
+    fitData=data.frame(residual=sum(residuals(decayFit)^2),tau=as.numeric(coef(decayFit)["tau"]),C=as.numeric(coef(decayFit)["C"]),converged=decayFit$convInfo$isConv)
     measured=data.frame(t=decayData$t,F=decayData$F,curve="measured")
-    model=data.frame(t=decayData$t,F=ret[1,force]*exp(-1*(decayData$t+fitData$t0)*fitData$tau)+fitData$C,curve="model")
+    model=data.frame(t=decayData$t,F=(ret[1,force]-fitData$C)*exp(-1*decayData$t*fitData$tau)+fitData$C,curve="model")
     if(debug){
-        dev.new()
         p=ggplot(rbind(measured,model))+geom_path(aes(x=t,y=F,color=curve))
         print(p)
         readline()
-        dev.off()
     }
     
     return(list(fit=fitData,curves=rbind(measured,model)))
