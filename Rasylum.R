@@ -475,8 +475,7 @@ extractTimeConst=function(frame, time="t", force="force", zPos="zSensr", dwellTi
     }
     ret=getDwell(frame,frame[1,dwellTime],zPos,force,time)
     decayData=data.frame(t=ret[,time]-ret[1,time],F=ret[,force],FZero=ret[1,force],zPos=ret[,zPos])
-    print(paste("FZero=",decayData$FZero[1]))
-    decayFit=nls("F ~ (FZero-C)*exp(-1*t*tau) + C",decayData,start=c(tau=1,C=1),control=nls.control(warnOnly=TRUE))
+    decayFit=nls("F ~ (FZero-C)*exp(-1*t*tau) + C",decayData,start=c(tau=1,C=.1,FZero=1),control=nls.control(warnOnly=TRUE))
     fitData=data.frame(residual=sum(residuals(decayFit)^2),tau=as.numeric(coef(decayFit)["tau"]),C=as.numeric(coef(decayFit)["C"]),converged=decayFit$convInfo$isConv)
     measured=data.frame(t=decayData$t,F=decayData$F,curve="measured")
     model=data.frame(t=decayData$t,F=(ret[1,force]-fitData$C)*exp(-1*decayData$t*fitData$tau)+fitData$C,curve="model")
