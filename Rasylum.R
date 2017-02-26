@@ -10,7 +10,7 @@ buildFrame=function(dataList, numRows){
     numCol=dim(dataList[[1]])[2]
     for(j in 1:numCol){
         print(paste((j/numCol)*100,"% Types Defined",sep=""))
-        dataTable[,as.integer(j):=rep(dataList[[1]][1,j],numRows)]
+        dataTable[,as.integer(j):=rep(as.data.frame(dataList[[1]])[1,j],numRows)]
     }
     curRow=1
     for(i in 1:length(dataList)){
@@ -36,7 +36,7 @@ saveFits=function(filename,fitData, x="zPos", y="F"){
             name=paste(name,fields[i],id[1,fields[i]])
         }
         newCurve=data.frame(x=curve[,x],y=curve[,y], curve=curve$curve)
-        plot=ggplot(newCurve,aes(x=x,y=y,color=curve))+geom_line()+labs(title=name)
+        plot=ggplot(newCurve,aes(x=x,y=y,color=curve))+geom_path()+labs(title=name)
         
         print(plot)
         print(name)
@@ -47,18 +47,23 @@ saveFits=function(filename,fitData, x="zPos", y="F"){
 
 collateFits=function(fitData){
                                         #Return a single data frame containing all fit values and identifiers
-    allFits=cbind(fitData$fits[[1]]$fit$fit,fitData$fits[[1]]$ident)
+    allFits=list()
+    allFits[[1]]=cbind(fitData$fits[[1]]$fit$fit,fitData$fits[[1]]$ident)
+    numFits=length(fitData$fits)
                                         #  print(fitData$fits[[1]])
-    for(f in 2:length(fitData$fits)){
+    for(f in 2:numFits){
                                         #     print(fitData$fits[[f]]$ident)
-        allFits=rbind(allFits,cbind(fitData$fits[[f]]$fit$fit,fitData$fits[[f]]$ident))
+        allFits[[f]]=cbind(fitData$fits[[f]]$fit$fit,fitData$fits[[f]]$ident)
     }
-    return(allFits)   
+    return(buildFrame(allFits,numFits))   
 }
 
 normalizeFrame=function(frame,column,identifiers,wrt,value="lowest"){
                                         #normalize the column column in the dataframe frame. Identifiers should be a list of the column names which can uniquely identify each case to be normalized. wrt and value specifies whether normalization should be with respect to the lowest or highest value of column wrt
-    output=data.frame()
+    library(data.table)
+    output=as.data.table(frame)
+    output[,names(output):=NA]
+    curOutputRow=1
     iterator=identIterate(frame,identifiers)    
     for(i in 1:length(iterator)){
         row=0
@@ -66,7 +71,6 @@ normalizeFrame=function(frame,column,identifiers,wrt,value="lowest"){
         if(all(dim(entry$data)>0)){
             if(regexpr("lowest",value)>0){
                 row=which.min(as.numeric(as.character(entry[,wrt])))
-                print(paste("cell=",entry[row,"cell"],"minimum",wrt,"=",entry[row,wrt]))
             }else if(regexpr("highest",value)>0){
                 row=which.max(as.numeric(as.character(entry[,wrt])))
             }else{
@@ -74,7 +78,9 @@ normalizeFrame=function(frame,column,identifiers,wrt,value="lowest"){
                 return(-1)
             }
             entry[,column]=entry[,column]/entry[row,column]
-            output=rbind(output,entry)
+            lengthEntry=dim(entry)[1]
+            output[curOutputRow:(curOutputRow+lengthEntry-1),names(output):=entry]            
+            curOutputRow=curOutputRow+lengthEntry
         }
     }
     return(output)
@@ -221,6 +227,11 @@ batchLoad=function(folder,consts,suffix){
     return(list(data=data,numRows=totalNumRows))
 }
 
+quickLoad=function(folder,consts,suffix){
+    imp=batchLoad(folder,consts,suffix)
+    return(buildFrame(imp$data,imp$numRows))
+}
+
 stiffnessSphereOnPlane=function(rBead, extZ, extForce, CPMaxF=.05, percentToFit=.1, roughness=.01, Q=.5, approachTrim=.1, debug=FALSE){
     library(data.table)
     if(debug){
@@ -266,7 +277,8 @@ stiffnessSphereOnPlane=function(rBead, extZ, extForce, CPMaxF=.05, percentToFit=
             curRow=curRow+1
             fits[curRow,names(fits):=NA]
         }
-    }                           
+    }
+    fits=na.omit(fits)
     bestValues=fits[which.min(fits$residual),] #default option
     minima=findLocalMinima(fits$residual,roughness,Q,approachTrim)
     minimaIndices=minima$indices
@@ -283,14 +295,14 @@ stiffnessSphereOnPlane=function(rBead, extZ, extForce, CPMaxF=.05, percentToFit=
         print(paste("chose absolute minima at",bestValues$contactIndex))
     }
     if(debug){
-        print(ggplot(data.frame(index=1:length(fits$residual),score=fits$residual),aes(x=index,y=score))+geom_line())
+        print(ggplot(data.frame(index=1:length(fits$residual),score=fits$residual),aes(x=index,y=score))+geom_path())
         readline()
     }
 
     fitCurve=data.frame(zPos=extZ[bestValues$contactIndex:length(extForce)], F=((4/3)*bestValues$EStar*(rBead^(1/2))*(extZ[bestValues$contactIndex:length(extForce)]-bestValues$contactPos)^(3/2))+bestValues$contactForce, curve="model")
     plotData=rbind(data.frame(zPos=extZ, F=extForce, curve="measured"),fitCurve)
     if(debug){
-        print(ggplot(plotData,aes(x=zPos,y=F,color=curve))+geom_line())
+        print(ggplot(plotData,aes(x=zPos,y=F,color=curve))+geom_path())
         readline()
     }
     return(list(fit=bestValues,curves=plotData))
@@ -379,11 +391,9 @@ identIterate=function(frame,identifiers,numCores=-1){
             }
         }
     }
-    print(paste("length allOptions=",length(allOptions)))
     toRun=mclapply(allOptions,trimDown,mc.cores=numCores)
     output=list()
     outputLength=0
-    print(paste("length toRun=",length(toRun)))
     if(length(toRun)!=length(allOptions)){
         print(paste("Parallel processing has resulted in dropped values, try again with a value of numCores smaller than",numCores))
         return(FALSE)
@@ -400,28 +410,29 @@ identIterate=function(frame,identifiers,numCores=-1){
 parExtractStiffness=function(rBead, cases, zPos="zSensr", force="force", CPMaxF=.05, percentToFit=.1, roughness=0.05,Q=.5, approachTrim=.1, debug=FALSE, minRise=0){
     library(parallel)
                                         #allCases is a list of curves to fit as generated by the identIter function
-    trimmedCases=list()
-    lengthTrimmedCases=0
+   # trimmedCases=list()
+   # lengthTrimmedCases=0
                                         #remove cases with 0 length data (I think these are leaking in from mclapply inserting empty entries where the subsetting function doesn't return anything
-    for(i in 1:length(cases)){
-        if(!is.null(cases[[i]])){ #This shouldn't be necessary anymore
-            cases[[i]]$data=stripRet(cases[[i]]$data,zPos)
-            lengthTrimmedCases=lengthTrimmedCases+1
-            trimmedCases[[lengthTrimmedCases]]=cases[[i]]
-        }
-    }
+   # for(i in 1:length(cases)){
+   #    if(!is.null(cases[[i]])){ #This shouldn't be necessary anymore
+   #         cases[[i]]$data=stripRet(cases[[i]]$data,zPos)
+   #         lengthTrimmedCases=lengthTrimmedCases+1
+   #         trimmedCases[[lengthTrimmedCases]]=cases[[i]]
+   #     }
+   # }
     parFun=function(case){
         print(case$ident)
+        case$data=stripRet(case$data,zPos)
         toReturn=stiffnessSphereOnPlane(rBead, case$data[zPos][,], case$data[force][,], CPMaxF, percentToFit, roughness,Q,approachTrim,debug)
         return(list(fit=toReturn,ident=case$ident))
     }
                                         # return(trimmedCases)
     if(debug){
-        for(ca in trimmedCases){
+        for(ca in cases){
             parFun(ca)
         }
     }
-    fits=mclapply(trimmedCases,parFun,mc.cores=detectCores())
+    fits=mclapply(cases,parFun,mc.cores=detectCores())
     toReturn=list(fits=fits,rBead=rBead, zPos=zPos, force=force, CPMaxF=CPMaxF, percentToFit=percentToFit,roughness=roughness,Q=Q, approachTrim=approachTrim)
     if(minRise>0){
         fixFlatFits(toReturn,minRise)
