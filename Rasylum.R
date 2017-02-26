@@ -1,6 +1,7 @@
-                                        #Version 0.1.2
+                                        #Version 0.2.0
 
 buildFrame=function(dataList, numRows){
+                                        #Transforms dataList, which is a list of lists with the same member names into a data.table with those names as columns
     library(data.table)
     dataTable=as.data.table(matrix(nrow=numRows, ncol=length(dataList[[1]])))
     print("Allocated table")
@@ -22,7 +23,7 @@ buildFrame=function(dataList, numRows){
 }
 
 saveFits=function(filename,fitData, x="zPos", y="F"){
-                                        #FitData should be a object created by parExtractStiffness or parExtractTimeConst
+                                        #FitData should be a object created by parExtractStiffness or parExtractTimeConst. Saves plots of the fit and original data to a pdf file filename
     graphics.off()
     library(ggplot2)
     pdf(filename)
@@ -46,13 +47,11 @@ saveFits=function(filename,fitData, x="zPos", y="F"){
 }
 
 collateFits=function(fitData){
-                                        #Return a single data frame containing all fit values and identifiers
+                                        #Return a single data frame containing all fit values and identifiers. fitData should be an object created by parExtractStiffness or parExtractTimeConst
     allFits=list()
     allFits[[1]]=cbind(fitData$fits[[1]]$fit$fit,fitData$fits[[1]]$ident)
     numFits=length(fitData$fits)
-                                        #  print(fitData$fits[[1]])
     for(f in 2:numFits){
-                                        #     print(fitData$fits[[f]]$ident)
         allFits[[f]]=cbind(fitData$fits[[f]]$fit$fit,fitData$fits[[f]]$ident)
     }
     return(buildFrame(allFits,numFits))   
@@ -99,7 +98,6 @@ getDwell=function(frame,dwellTime,zPos,F,t){
                                         #Strip the extension curve from imported ibw data stored in frame (a data frame) zPos should be the column of that frame corresponding to the position of the z piezo (deflection would also probably work)
                                         #remove extract curve and any tail at the start of the extension
     startPoint=which.max(frame[,F])
-    #startPoint=which.min(abs(frame[startPoint:length(frame[,1]),F]-0.99*max(frame[startPoint:length(frame[,1]),F])))
     tStart=frame[startPoint,t]
     tEnd=tStart+dwellTime
     endPoint=which.min(abs(frame[,t]-tEnd))
@@ -209,8 +207,7 @@ batchLoad=function(folder,consts,suffix){
         print(paste(fileNo/length(filenames)*100,"% complete",sep=""))
         fileNo=fileNo+1
         vars=c()
-        delims=c(consts,suffix)
-                                        #        return(delims)
+        delims=c(consts,suffix)                                   
         for(i in 1:(length(delims)-1)){
             vars[i]=substr(f,regexpr(delims[i],f)+nchar(delims[i]),regexpr(delims[i+1],f)-1)
         }
@@ -228,20 +225,20 @@ batchLoad=function(folder,consts,suffix){
 }
 
 quickLoad=function(folder,consts,suffix){
+                                        #Convenience function for running batchload and buildFrame with one command
     imp=batchLoad(folder,consts,suffix)
     return(buildFrame(imp$data,imp$numRows))
 }
 
 stiffnessSphereOnPlane=function(rBead, extZ, extForce, CPMaxF=.05, percentToFit=.1, roughness=.01, Q=.5, approachTrim=.1, debug=FALSE){
+                                        # Extract the stiffness and contact point for sphere on plane indentation. Assume that the bead is much stiffer than the cell. rBead is the bead radius, extZ and extForce are column vectors containing the position and force data, respectively. CPMaxF is the percentage of the maximum force beyond which this function will not test for the contact point. percentToFit is the percentage of the extension curve that will be used to perform the fits. roughness is the percent of the force range that features will have to be larger than to not be considered noise. Q is the minimum ratio of height to width a trough on a residual vs. contact point plot has to have to be considered a local minima. approachTrim is the percentage of the beginning of a curve to be trimmed off before performing fitting. Setting debug to TRUE causes the function to plot each fit (the user should press 'enter' to cycle through fits) in order to allow for tuning of fit parameters.
     library(data.table)
     if(debug){
         library(ggplot2)
     }
-                                        # Extract the stiffness and contact point for sphere on plane indentation. Assume that the bead is much stiffer than the cell
                                         #First find slightly overestimated CP
     minForce=min(extForce)
     thresh=minForce+CPMaxF*(max(extForce)-minForce)
-                                        #roughCPIndex=which.min(abs(extForce-thresh))
     roughCPIndex=length(extForce)
     for(i in length(extForce):1){
         if(extForce[i]<thresh){
@@ -251,13 +248,11 @@ stiffnessSphereOnPlane=function(rBead, extZ, extForce, CPMaxF=.05, percentToFit=
     }
     eq="F~(4/3)*EStar*(r^(1/2))*indent^(3/2)"
     lengthForce=length(extForce)
-                                        #        allFits=c() #Delete later
     fitLength=floor(lengthForce*percentToFit)
     stopIndex=lengthForce-fitLength+1
     numRow=min(stopIndex,roughCPIndex)
     fits=data.table(contactIndex=rep(-1,times=numRow),contactPos=rep(-1,times=numRow),contactForce=rep(-1,times=numRow),residual=rep(-1,times=numRow), sigma=rep(-1,times=numRow),EStar=rep(-1,times=numRow),converged=rep(FALSE,times=numRow))
     curRow=0
-                                        #print(paste("fit Length=",fitLength,sep=""))
 
     for(i in 1:numRow){
                                         #Perform fits at each point, assuming F[i]=0 and indent[i]=0
@@ -333,6 +328,7 @@ stiffnessSphereOnSphere=function(rBead, extZ, extForce,percentToFit=.1){
 }
 
 identIterate=function(frame,identifiers,numCores=-1){
+                                        #returns a list of lists defining different important groupings of observations. frame is a data frame containing the raw data, identifiers is the names of the columns of frame where unique values correspond to groups. numCores is the number of cores to use in order to do the calculation (if -1 is used, the function will use all available cores)
     frame=as.data.frame(frame)
     library(parallel)
     if(numCores<0){
@@ -407,32 +403,31 @@ identIterate=function(frame,identifiers,numCores=-1){
     return(output)
 }
 
-parExtractStiffness=function(rBead, cases, zPos="zSensr", force="force", CPMaxF=.05, percentToFit=.1, roughness=0.05,Q=.5, approachTrim=.1, debug=FALSE, minRise=0){
+parExtractStiffness=function(rBead, cases, zPos="zSensr", force="force", CPMaxF=.05, percentToFit=.1, roughness=0.05,Q=.5, approachTrim=.1, debug=FALSE, minRise=0, numCores=-1){
+
+                                        #allCases is a list of curves to fit as generated by the identIter function, rBead is the bead radius, extZ and extForce are column vectors containing the position and force data, respectively. CPMaxF is the percentage of the maximum force beyond which this function will not test for the contact point. percentToFit is the percentage of the extension curve that will be used to perform the fits. roughness is the percent of the force range that features will have to be larger than to not be considered noise. Q is the minimum ratio of height to width a trough on a residual vs. contact point plot has to have to be considered a local minima. approachTrim is the percentage of the beginning of a curve to be trimmed off before performing fitting. Defaults for zPos and force correspond to the values used in data imported using loadIBW, batchLoad and quickLoad. numCores is the number of cores to use in order to do the calculation (if -1 is used, the function will use all available cores). Setting debug to TRUE causes the function to plot each fit (the user should press 'enter' to cycle through fits) in order to allow for tuning of fit parameters.
     library(parallel)
-                                        #allCases is a list of curves to fit as generated by the identIter function
-   # trimmedCases=list()
-   # lengthTrimmedCases=0
-                                        #remove cases with 0 length data (I think these are leaking in from mclapply inserting empty entries where the subsetting function doesn't return anything
-   # for(i in 1:length(cases)){
-   #    if(!is.null(cases[[i]])){ #This shouldn't be necessary anymore
-   #         cases[[i]]$data=stripRet(cases[[i]]$data,zPos)
-   #         lengthTrimmedCases=lengthTrimmedCases+1
-   #         trimmedCases[[lengthTrimmedCases]]=cases[[i]]
-   #     }
-   # }
+    if(numCores<0){
+        numCores=detectCores()
+    }
+
     parFun=function(case){
         print(case$ident)
         case$data=stripRet(case$data,zPos)
         toReturn=stiffnessSphereOnPlane(rBead, case$data[zPos][,], case$data[force][,], CPMaxF, percentToFit, roughness,Q,approachTrim,debug)
         return(list(fit=toReturn,ident=case$ident))
-    }
-                                        # return(trimmedCases)
+    }            
     if(debug){
         for(ca in cases){
             parFun(ca)
         }
     }
-    fits=mclapply(cases,parFun,mc.cores=detectCores())
+    fits=mclapply(cases,parFun,mc.cores=numCores)
+    if(length(fits)!=length(cases)){
+        print(paste("Parallel processing has resulted in dropped values, try again with a value of numCores smaller than",numCores))
+        return(FALSE)
+    }
+
     toReturn=list(fits=fits,rBead=rBead, zPos=zPos, force=force, CPMaxF=CPMaxF, percentToFit=percentToFit,roughness=roughness,Q=Q, approachTrim=approachTrim)
     if(minRise>0){
         fixFlatFits(toReturn,minRise)
@@ -442,7 +437,7 @@ parExtractStiffness=function(rBead, cases, zPos="zSensr", force="force", CPMaxF=
 }
 
 fixFlatFits=function(fits, minRise=.1,debug=FALSE){
-                                        #Sometimes the method for finding the best fit chooses to fit a portion of the approach curve before the probe is in contact (resulting in a stiffness of ~0. This function attempts to find these cases (by comparing the maximum values of the measured and modeled curves) and produce a better fit
+                                        #Sometimes the method for finding the best fit chooses to fit a portion of the approach curve before the probe is in contact (resulting in a stiffness of ~0. This function attempts to find these cases (by comparing the maximum values of the measured and modeled curves) and produce a better fit. Setting debug to TRUE causes the function to plot each fit (the user should press 'enter' to cycle through fits) in order to allow for tuning of fit parameters.
     checkFit=function(i,allFits){
         fitCurves=allFits$fits[[i]]$fit$curves
         measured=fitCurves[fitCurves$curve=="measured",]
@@ -480,7 +475,7 @@ fixFlatFits=function(fits, minRise=.1,debug=FALSE){
 }
 
 extractTimeConst=function(frame, time="t", force="force", zPos="zSensr", dwellTime="dwell", debug=FALSE){
-                                        #frame is the raw data for the compression as produced by the loadIBW function
+                                        #frame is the raw data for the compression as produced by the loadIBW function. time, force, zPos and dwellTime are the names of the columns of frame which contain the time, force, indentation, and dwellTime data. Defaults correspond to the values used in data imported using loadIBW, batchLoad and quickLoad. Setting debug to TRUE causes the function to plot each fit (the user should press 'enter' to cycle through fits) in order to allow for tuning of fit parameters.
     if(debug){
         library(ggplot2)
     }
@@ -500,6 +495,7 @@ extractTimeConst=function(frame, time="t", force="force", zPos="zSensr", dwellTi
 }
 
 parExtractTimeConst=function(cases, time="t", force="force", zPos="zSensr", dwell="dwell", debug=FALSE, numCores=-1){
+                                        #This function extracts the viscous time constants from the curves contained in cases (which should be constructed using identIterate()). Time, force, zPos, and dwell are the names for the columns corresponding to the time, force, indentation and dwell data in the original data frame. Default values correspond to those in data imported using loadIBW, batchLoad() and quickLoad(). numCores is the number of cores to use in order to do the calculation (if -1 is used, the function will use all available cores). Setting debug to TRUE causes the function to plot each fit (the user should press 'enter' to cycle through fits) in order to allow for tuning of fit parameters.
     library(parallel)
     if(numCores<0){
         numCores=detectCores()
@@ -515,7 +511,7 @@ parExtractTimeConst=function(cases, time="t", force="force", zPos="zSensr", dwel
         }
     }else{
         fits=mclapply(cases,parFun,mc.cores=numCores)
-        }
+    }
     if(length(fits)!=length(cases)){
         print(paste("Not enough RAM for all cores, try again with numCores<",numCores,sep=""))
         return(FALSE)
