@@ -63,7 +63,7 @@ normalizeFrame=function(frame,column,identifiers,wrt,value="lowest"){
     output=as.data.table(frame)
     output[,names(output):=NA]
     curOutputRow=1
-    iterator=identIterate(frame,identifiers)    
+    iterator=identIterate(frame,identifiers,1)    
     for(i in 1:length(iterator)){
         row=0
         entry=iterator[[i]]$data
