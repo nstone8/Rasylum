@@ -230,6 +230,15 @@ quickLoad=function(folder,consts,suffix){
     return(buildFrame(imp$data,imp$numRows))
 }
 
+loadPreSorted=function(folder,consts,suffix){
+    imp=batchLoad(folder,consts,suffix)
+    iterated=list()
+    for(i in 1:length(imp$data)){
+        iterated[[i]]=list(data=imp$data[[i]],ident=imp$data[[i]][1,consts])
+    }
+    return(iterated)
+}
+
 stiffnessSphereOnPlane=function(rBead, extZ, extForce, CPMaxF=.05, percentToFit=.1, roughness=.01, Q=.5, approachTrim=.1, debug=FALSE){
                                         # Extract the stiffness and contact point for sphere on plane indentation. Assume that the bead is much stiffer than the cell. rBead is the bead radius, extZ and extForce are column vectors containing the position and force data, respectively. CPMaxF is the percentage of the maximum force beyond which this function will not test for the contact point. percentToFit is the percentage of the extension curve that will be used to perform the fits. roughness is the percent of the force range that features will have to be larger than to not be considered noise. Q is the minimum ratio of height to width a trough on a residual vs. contact point plot has to have to be considered a local minima. approachTrim is the percentage of the beginning of a curve to be trimmed off before performing fitting. Setting debug to TRUE causes the function to plot each fit (the user should press 'enter' to cycle through fits) in order to allow for tuning of fit parameters.
     library(data.table)
