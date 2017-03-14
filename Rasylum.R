@@ -439,7 +439,7 @@ parExtractStiffness=function(rBead, cases, zPos="zSensr", force="force", CPMaxF=
 
     toReturn=list(fits=fits,rBead=rBead, zPos=zPos, force=force, CPMaxF=CPMaxF, percentToFit=percentToFit,roughness=roughness,Q=Q, approachTrim=approachTrim)
     if(minRise>0){
-        fixFlatFits(toReturn,minRise,numCores)
+        fixFlatFits(toReturn,minRise,debug,numCores)
 
     }
     return(toReturn)
