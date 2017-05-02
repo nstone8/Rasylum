@@ -462,7 +462,8 @@ fixFlatFits=function(fits, minRise=.1,debug=FALSE, numCores=-1){
         fitCurves=allFits$fits[[i]]$fit$curves
         measured=fitCurves[fitCurves$curve=="measured",]
         model=fitCurves[fitCurves$curve=="model",]
-        if((max(model$F)/max(measured$F))<minRise){
+        rangeMeasured=max(measured$F)-min(measured$F)
+        if(1-(abs(max(model$F)-max(measured$F))/rangeMeasured)<minRise){
                                         #This fit is flat, trim the measured curve up to the current CP and refit. If this results in a different fit, check the new fit for flatness. if it doesn't, then there probably isn't a better local minimum to choose
             print("Attempting to improve fit for:")
             print(allFits$fits[[i]]$ident)
