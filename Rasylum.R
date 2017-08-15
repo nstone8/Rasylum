@@ -1,4 +1,4 @@
-                                        #Version 0.2.1
+                                        #Version 0.2.2
 
 buildFrame=function(dataList, numRows){
                                         #Transforms dataList, which is a list of lists with the same member names into a data.table with those names as columns
@@ -534,10 +534,15 @@ extractTimeConst=function(frame, time="t", force="force", zPos="zSensr", dwellTi
     }
     ret=getDwell(frame,frame[1,dwellTime],zPos,force,time)
     decayData=data.frame(t=ret[,time]-ret[1,time],F=ret[,force],FZero=ret[1,force],zPos=ret[,zPos])
-    decayFit=nls("F ~ (FZero-C)*exp(-1*t*tau) + C",decayData,start=c(tau=1,C=.1,FZero=1),control=nls.control(warnOnly=TRUE))
-    fitData=data.frame(residual=sum(residuals(decayFit)^2),tau=as.numeric(coef(decayFit)["tau"]),C=as.numeric(coef(decayFit)["C"]),converged=decayFit$convInfo$isConv)
+    if(debug){
+        print("residual: tau1 tau2 A C")
+    }
+    decayFit=nls("F ~ (FZero-C)*((abs(A)%%1)*exp(-1*t*tau1)+(1-(abs(A)%%1))*exp(-1*t*tau2)) + C",decayData,start=c(tau1=10,tau2=1,A=.8,C=1E-6),control=nls.control(warnOnly=TRUE,maxiter=100,minFactor=1/4096),trace=debug)
+    fitData=data.frame(residual=sum(residuals(decayFit)^2),tau1=as.numeric(coef(decayFit)["tau1"]),C=as.numeric(coef(decayFit)["C"]),tau2=as.numeric(coef(decayFit)["tau2"]),A=as.numeric(coef(decayFit)["A"]),converged=decayFit$convInfo$isConv)
+
     measured=data.frame(t=decayData$t,F=decayData$F,curve="measured")
-    model=data.frame(t=decayData$t,F=(ret[1,force]-fitData$C)*exp(-1*decayData$t*fitData$tau)+fitData$C,curve="model")
+
+    model=data.frame(t=decayData$t,F=(ret[1,force]-fitData$C)*(fitData$A*exp(-1*decayData$t*fitData$tau1)+(1-fitData$A)*exp(-1*decayData$t*fitData$tau2))+fitData$C,curve="model")
     if(debug){
         p=ggplot(rbind(measured,model))+geom_path(aes(x=t,y=F,color=curve))
         print(p)
