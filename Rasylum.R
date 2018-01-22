@@ -560,6 +560,7 @@ parExtractTimeConst=function(cases, time="t", force="force", zPos="zSensr", dwel
         numCores=detectCores()-1 #Default to giving R a bonus core to play with
     }
     parFun=function(case){
+    	print(case$ident)
         toReturn=extractTimeConst(case$data, time, force, zPos, dwell, debug)
         return(list(fit=toReturn,ident=case$ident))
     }
