@@ -257,7 +257,7 @@ stiffnessSphereOnPlane=function(rBead, extZ, extForce, CPMaxF=.05, percentToFit=
     trimmedStart=1
     if(approachTrim>0 && (roughCPIndex-approachTrim*length(extForce)>1)){
                                         #remove long approach curve
-        trimmedStart=floor(roughCPIndex-approachTrim*length(extForce))
+        trimmedStart=floor(approachTrim*length(extForce))
     }
     roughCPIndex=roughCPIndex-(trimmedStart-1)
     extZ=extZ[trimmedStart:length(extZ)]
