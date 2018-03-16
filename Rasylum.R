@@ -33,8 +33,12 @@ saveFits=function(filename,fitData, x="zPos", y="F"){
         id=fit$ident
         fields=names(id)
         name=""
-        for(i in 1:length(fields)){
-            name=paste(name,fields[i],id[1,fields[i]])
+        if(length(fields)>1){
+            for(i in 1:length(fields)){
+                name=paste(name,fields[i],id[1,fields[i]])
+            }
+        }else{
+            name=paste(name,fields,id)
         }
         newCurve=data.frame(x=curve[,x],y=curve[,y], curve=curve$curve)
         plot=ggplot(newCurve,aes(x=x,y=y,color=curve))+geom_path()+labs(title=name)
@@ -211,8 +215,10 @@ batchLoad=function(folder,consts,suffix){
         }
         unlabeledData=loadIBW(paste(folder,f,sep=""),TRUE)
         newcol=data.frame(vars[1])
-        for(v in 2:length(vars)){
-            newcol=cbind(newcol,vars[v])
+        if(length(vars)>1){
+            for(v in 2:length(vars)){
+                newcol=cbind(newcol,vars[v])
+            }
         }
         names(newcol)=consts
         totalNumRows=totalNumRows+dim(unlabeledData)[1]
@@ -233,6 +239,9 @@ loadPreSorted=function(folder,consts,suffix){
     iterated=list()
     for(i in 1:length(imp$data)){
         iterated[[i]]=list(data=imp$data[[i]],ident=imp$data[[i]][1,consts])
+        if(length(consts<2)){
+            names(iterated[[i]]$ident)=consts
+        }
     }
     return(iterated)
 }
@@ -538,7 +547,7 @@ extractTimeConst=function(frame, time="t", force="force", zPos="zSensr", dwellTi
     if(debug){
         print("residual: tau1 tau2 A C")
     }
-    decayFit=nls("F ~ (FZero-C)*((abs(A)%%1)*exp(-1*t*tau1)+(1-(abs(A)%%1))*exp(-1*t*tau2)) + C",decayData,start=c(tau1=10,tau2=1,A=.8,C=1E-6),control=nls.control(warnOnly=TRUE,maxiter=100,minFactor=1/4096),trace=debug)
+    decayFit=nls("F ~ (FZero-C)*((abs(A)%%1)*exp(-1*t*tau1)+(1-(abs(A)%%1))*exp(-1*t*tau2)) + C",decayData,start=c(tau1=1,tau2=.1,A=.1,C=0),control=nls.control(warnOnly=TRUE,maxiter=100,minFactor=1/4096),trace=debug)
     fitData=data.frame(residual=sum(residuals(decayFit)^2),tau1=as.numeric(coef(decayFit)["tau1"]),C=as.numeric(coef(decayFit)["C"]),tau2=as.numeric(coef(decayFit)["tau2"]),A=as.numeric(coef(decayFit)["A"]),converged=decayFit$convInfo$isConv)
 
     measured=data.frame(t=decayData$t,F=decayData$F,curve="measured")
