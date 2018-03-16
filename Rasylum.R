@@ -588,3 +588,24 @@ parExtractTimeConst=function(cases, time="t", force="force", zPos="zSensr", dwel
     return(list(fits=fits, time=time, force=force, zPos=zPos))
     
 }
+extractApproachAdhesion=function(case,percentFlat=0.8){
+    curve=stripRet(case$data,"zSensr")
+    minIndex=which.min(curve$force)
+    curve=curve[1:minIndex,]
+    curve$index=c(1:dim(curve)[1])
+    approachFit=lm(force~index,curve[1:floor(dim(curve)[1]*percentFlat),])
+    ## print("min force")
+    ## print(curve$force[minIndex])
+    ## print("baseline")
+    ## print(as.numeric(coef(approachFit)[1]+coef(approachFit)[2]*minIndex))
+    return(as.numeric(coef(approachFit)[1]+coef(approachFit)[2]*minIndex-curve$force[minIndex]))
+}
+parExtractApproachAdhesion=function(cases,percentFlat=0.8,numCores=-1){
+    if(numCores<0){
+        numCores=detectCores()-1 #Default to giving R a bonus core to play with
+    }
+    oneArgFun=function(c){
+        return(extractApproachAdhesion(c,percentFlat))
+    }
+    return(mclapply(cases,oneArgFun,mc.cores=numCores))
+}
