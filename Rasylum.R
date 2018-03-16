@@ -601,6 +601,7 @@ extractApproachAdhesion=function(case,percentFlat=0.8){
     return(as.numeric(coef(approachFit)[1]+coef(approachFit)[2]*minIndex-curve$force[minIndex]))
 }
 parExtractApproachAdhesion=function(cases,percentFlat=0.8,numCores=-1){
+    library(parallel)
     if(numCores<0){
         numCores=detectCores()-1 #Default to giving R a bonus core to play with
     }
