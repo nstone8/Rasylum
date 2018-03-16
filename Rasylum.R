@@ -1,4 +1,4 @@
-                                        #Version 0.2.2
+                                        #Version 0.2.3
 
 buildFrame=function(dataList, numRows){
                                         #Transforms dataList, which is a list of lists with the same member names into a data.table with those names as columns
