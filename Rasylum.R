@@ -1,4 +1,4 @@
-                                        #Version 0.2.3
+                                        #Version 0.2.2
 
 buildFrame=function(dataList, numRows){
                                         #Transforms dataList, which is a list of lists with the same member names into a data.table with those names as columns
@@ -95,6 +95,15 @@ stripRet=function(frame,zPos){
                                         #remove retract curve and any tail at the start of the extension
     endPoint=which.max(zData)
     startPoint=which.min(zData[1:endPoint])
+    return(frame[startPoint:endPoint,])
+}
+
+stripApr=function(frame,zPos){
+                                        #Strip the approach curve from imported ibw data stored in frame (a data frame) zPos should be the column of that frame corresponding to the position of the z piezo (deflection would also probably work)
+    zData=frame[,zPos]
+                                        #remove approach curve and any tail at the start of the extension
+    startPoint=which.max(zData)
+    endPoint=length(zData)
     return(frame[startPoint:endPoint,])
 }
 
@@ -588,6 +597,7 @@ parExtractTimeConst=function(cases, time="t", force="force", zPos="zSensr", dwel
     return(list(fits=fits, time=time, force=force, zPos=zPos))
     
 }
+
 extractApproachAdhesion=function(case,percentFlat=0.8){
     curve=stripRet(case$data,"zSensr")
     minIndex=which.min(curve$force)
@@ -600,6 +610,22 @@ extractApproachAdhesion=function(case,percentFlat=0.8){
     ## print(as.numeric(coef(approachFit)[1]+coef(approachFit)[2]*minIndex))
     return(as.numeric(coef(approachFit)[1]+coef(approachFit)[2]*minIndex-curve$force[minIndex]))
 }
+
+extractRetractionAdhesion=function(case,percentFlat=0.8){
+    curve=stripApr(case$data,"zSensr")
+		## plot(curve$zSensr,curve$force)
+    minIndex=which.min(curve$force)
+    curve=curve[(-1):(-minIndex+1),]
+    minIndex=1
+    curve$index=c(1:dim(curve)[1])
+    retractionFit=lm(force~index,curve[floor(dim(curve)[1]*(1-percentFlat)):dim(curve)[1],])
+   		## print("min force")
+   		## print(curve$force[minIndex])
+   		## print("baseline")
+   		## print(as.numeric(coef(approachFit)[1]+coef(approachFit)[2]*minIndex))
+    return(as.numeric(coef(retractionFit)[1]+coef(retractionFit)[2]*minIndex-curve$force[minIndex]))
+}
+
 parExtractApproachAdhesion=function(cases,percentFlat=0.8,numCores=-1){
     library(parallel)
     if(numCores<0){
@@ -607,6 +633,17 @@ parExtractApproachAdhesion=function(cases,percentFlat=0.8,numCores=-1){
     }
     oneArgFun=function(c){
         return(extractApproachAdhesion(c,percentFlat))
+    }
+    return(mclapply(cases,oneArgFun,mc.cores=numCores))
+}
+
+parExtractRetractionAdhesion=function(cases,percentFlat=0.8,numCores=-1){
+    library(parallel)
+    if(numCores<0){
+        numCores=detectCores()-1 #Default to giving R a bonus core to play with
+    }
+    oneArgFun=function(c){
+        return(extractRetractionAdhesion(c,percentFlat))
     }
     return(mclapply(cases,oneArgFun,mc.cores=numCores))
 }
