@@ -1,4 +1,4 @@
-                                        #Version 0.2.0
+                                        #Version 0.2.2
 
 buildFrame=function(dataList, numRows){
                                         #Transforms dataList, which is a list of lists with the same member names into a data.table with those names as columns
@@ -33,8 +33,12 @@ saveFits=function(filename,fitData, x="zPos", y="F"){
         id=fit$ident
         fields=names(id)
         name=""
-        for(i in 1:length(fields)){
-            name=paste(name,fields[i],id[1,fields[i]])
+        if(length(fields)>1){
+            for(i in 1:length(fields)){
+                name=paste(name,fields[i],id[1,fields[i]])
+            }
+        }else{
+            name=paste(name,fields,id)
         }
         newCurve=data.frame(x=curve[,x],y=curve[,y], curve=curve$curve)
         plot=ggplot(newCurve,aes(x=x,y=y,color=curve))+geom_path()+labs(title=name)
@@ -94,6 +98,15 @@ stripRet=function(frame,zPos){
     return(frame[startPoint:endPoint,])
 }
 
+stripApr=function(frame,zPos){
+                                        #Strip the approach curve from imported ibw data stored in frame (a data frame) zPos should be the column of that frame corresponding to the position of the z piezo (deflection would also probably work)
+    zData=frame[,zPos]
+                                        #remove approach curve and any tail at the start of the extension
+    startPoint=which.max(zData)
+    endPoint=length(zData)
+    return(frame[startPoint:endPoint,])
+}
+
 getDwell=function(frame,dwellTime,zPos,F,t){
                                         #Strip the extension curve from imported ibw data stored in frame (a data frame) zPos should be the column of that frame corresponding to the position of the z piezo (deflection would also probably work)
                                         #remove extract curve and any tail at the start of the extension
@@ -125,11 +138,9 @@ loadIBW = function(wave,asDataFrame=FALSE){
     }
 }
 
-findLocalMinima=function(vec, roughness,Q,approachTrim){
+findLocalMinima=function(vec, roughness,Q){
 
                                         #find local minima in a vector, increasing roughness makes the function less sensitive to shallow valleys (value should be between 0 and 1). Q is the minimum depth/width ratio of the minima. ApproachTrim is the amount of data to trim off of the beginning of the curve to remove noise. return an empty data frame if no local minima are found
-    startIndex=floor(approachTrim*length(vec))
-    vec=vec[floor(approachTrim*length(vec)):length(vec)]
     indices=c()
     thresh=(max(vec)-min(vec))*roughness
     lVec=length(vec)
@@ -183,7 +194,7 @@ findLocalMinima=function(vec, roughness,Q,approachTrim){
             
         }
     }
-    return(list(indices=sharpIndices+(startIndex-1),heights=sharpHeights, Qs=sharpnesses))
+    return(list(indices=sharpIndices,heights=sharpHeights, Qs=sharpnesses))
     
 }
 
@@ -213,8 +224,10 @@ batchLoad=function(folder,consts,suffix){
         }
         unlabeledData=loadIBW(paste(folder,f,sep=""),TRUE)
         newcol=data.frame(vars[1])
-        for(v in 2:length(vars)){
-            newcol=cbind(newcol,vars[v])
+        if(length(vars)>1){
+            for(v in 2:length(vars)){
+                newcol=cbind(newcol,vars[v])
+            }
         }
         names(newcol)=consts
         totalNumRows=totalNumRows+dim(unlabeledData)[1]
@@ -230,7 +243,19 @@ quickLoad=function(folder,consts,suffix){
     return(buildFrame(imp$data,imp$numRows))
 }
 
-stiffnessSphereOnPlane=function(rBead, extZ, extForce, CPMaxF=.05, percentToFit=.1, roughness=.01, Q=.5, approachTrim=.1, debug=FALSE){
+loadPreSorted=function(folder,consts,suffix){
+    imp=batchLoad(folder,consts,suffix)
+    iterated=list()
+    for(i in 1:length(imp$data)){
+        iterated[[i]]=list(data=imp$data[[i]],ident=imp$data[[i]][1,consts])
+        if(length(consts<2)){
+            names(iterated[[i]]$ident)=consts
+        }
+    }
+    return(iterated)
+}
+
+stiffnessSphereOnPlane=function(rBead, extZ, extForce, CPMaxF=.05, percentToFit=0.2, roughness=.01, Q=.5, approachTrim=0.2, debug=FALSE){
                                         # Extract the stiffness and contact point for sphere on plane indentation. Assume that the bead is much stiffer than the cell. rBead is the bead radius, extZ and extForce are column vectors containing the position and force data, respectively. CPMaxF is the percentage of the maximum force beyond which this function will not test for the contact point. percentToFit is the percentage of the extension curve that will be used to perform the fits. roughness is the percent of the force range that features will have to be larger than to not be considered noise. Q is the minimum ratio of height to width a trough on a residual vs. contact point plot has to have to be considered a local minima. approachTrim is the percentage of the beginning of a curve to be trimmed off before performing fitting. Setting debug to TRUE causes the function to plot each fit (the user should press 'enter' to cycle through fits) in order to allow for tuning of fit parameters.
     library(data.table)
     if(debug){
@@ -247,6 +272,15 @@ stiffnessSphereOnPlane=function(rBead, extZ, extForce, CPMaxF=.05, percentToFit=
         }
     }
     eq="F~(4/3)*EStar*(r^(1/2))*indent^(3/2)"
+    trimmedStart=1
+    if(approachTrim>0 && (roughCPIndex-approachTrim*length(extForce)>1)){
+                                        #remove long approach curve
+        trimmedStart=floor(approachTrim*length(extForce))
+    }
+    roughCPIndex=roughCPIndex-(trimmedStart-1)
+    extZ=extZ[trimmedStart:length(extZ)]
+    extForce=extForce[trimmedStart:length(extForce)]
+    
     lengthForce=length(extForce)
     fitLength=floor(lengthForce*percentToFit)
     stopIndex=lengthForce-fitLength+1
@@ -275,7 +309,7 @@ stiffnessSphereOnPlane=function(rBead, extZ, extForce, CPMaxF=.05, percentToFit=
     }
     fits=na.omit(fits)
     bestValues=fits[which.min(fits$residual),] #default option
-    minima=findLocalMinima(fits$residual,roughness,Q,approachTrim)
+    minima=findLocalMinima(fits$residual,roughness,Q)
     minimaIndices=minima$indices
     if(length(minimaIndices)>0){
         smallestIndex=which.min(fits$residual[minimaIndices])
@@ -303,7 +337,7 @@ stiffnessSphereOnPlane=function(rBead, extZ, extForce, CPMaxF=.05, percentToFit=
     return(list(fit=bestValues,curves=plotData))
 }
 
-stiffnessSphereOnSphere=function(rBead, extZ, extForce,percentToFit=.1){
+stiffnessSphereOnSphere=function(rBead, extZ, extForce,percentToFit=0.2){
                                         #Extract Stiffness, Contact point and radius of cell
                                         #Get Contact Point and initial estimate of stiffness from sphere-plane contact model
     flatFit=stiffnessSphereOnPlane(rBead,extZ,extForce,percentToFit)$fit
@@ -332,7 +366,7 @@ identIterate=function(frame,identifiers,numCores=-1){
     frame=as.data.frame(frame)
     library(parallel)
     if(numCores<0){
-        numCores=detectCores()
+        numCores=detectCores()-1 #Default to giving R a bonus core to play with
     }
     identifierIter=list()
     identifierIterLength=0
@@ -403,12 +437,12 @@ identIterate=function(frame,identifiers,numCores=-1){
     return(output)
 }
 
-parExtractStiffness=function(rBead, cases, zPos="zSensr", force="force", CPMaxF=.05, percentToFit=.1, roughness=0.05,Q=.5, approachTrim=.1, debug=FALSE, minRise=0, numCores=-1){
+parExtractStiffness=function(rBead, cases, zPos="zSensr", force="force", CPMaxF=.05, percentToFit=0.2, roughness=0.05,Q=.5, approachTrim=0.2, debug=FALSE, minRise=0, numCores=-1){
 
                                         #allCases is a list of curves to fit as generated by the identIter function, rBead is the bead radius, extZ and extForce are column vectors containing the position and force data, respectively. CPMaxF is the percentage of the maximum force beyond which this function will not test for the contact point. percentToFit is the percentage of the extension curve that will be used to perform the fits. roughness is the percent of the force range that features will have to be larger than to not be considered noise. Q is the minimum ratio of height to width a trough on a residual vs. contact point plot has to have to be considered a local minima. approachTrim is the percentage of the beginning of a curve to be trimmed off before performing fitting. Defaults for zPos and force correspond to the values used in data imported using loadIBW, batchLoad and quickLoad. numCores is the number of cores to use in order to do the calculation (if -1 is used, the function will use all available cores). Setting debug to TRUE causes the function to plot each fit (the user should press 'enter' to cycle through fits) in order to allow for tuning of fit parameters.
     library(parallel)
     if(numCores<0){
-        numCores=detectCores()
+        numCores=detectCores()-1 #Default to giving R a bonus core to play with
     }
 
     parFun=function(case){
@@ -430,19 +464,24 @@ parExtractStiffness=function(rBead, cases, zPos="zSensr", force="force", CPMaxF=
 
     toReturn=list(fits=fits,rBead=rBead, zPos=zPos, force=force, CPMaxF=CPMaxF, percentToFit=percentToFit,roughness=roughness,Q=Q, approachTrim=approachTrim)
     if(minRise>0){
-        fixFlatFits(toReturn,minRise)
+        fixFlatFits(toReturn,minRise,debug,numCores)
 
     }
     return(toReturn)
 }
 
-fixFlatFits=function(fits, minRise=.1,debug=FALSE){
+fixFlatFits=function(fits, minRise=.1,debug=FALSE, numCores=-1){
+    library(parallel)
+    if(numCores<0){
+        numCores=detectCores()-1 #Default to giving R a bonus core to play with
+    }
                                         #Sometimes the method for finding the best fit chooses to fit a portion of the approach curve before the probe is in contact (resulting in a stiffness of ~0. This function attempts to find these cases (by comparing the maximum values of the measured and modeled curves) and produce a better fit. Setting debug to TRUE causes the function to plot each fit (the user should press 'enter' to cycle through fits) in order to allow for tuning of fit parameters.
     checkFit=function(i,allFits){
         fitCurves=allFits$fits[[i]]$fit$curves
         measured=fitCurves[fitCurves$curve=="measured",]
         model=fitCurves[fitCurves$curve=="model",]
-        if((max(model$F)/max(measured$F))<minRise){
+        rangeMeasured=max(measured$F)-min(measured$F)
+        if(1-(abs(max(model$F)-max(measured$F))/rangeMeasured)<minRise){
                                         #This fit is flat, trim the measured curve up to the current CP and refit. If this results in a different fit, check the new fit for flatness. if it doesn't, then there probably isn't a better local minimum to choose
             print("Attempting to improve fit for:")
             print(allFits$fits[[i]]$ident)
@@ -466,12 +505,45 @@ fixFlatFits=function(fits, minRise=.1,debug=FALSE){
         parFun=function(k){
             return(checkFit(k,fits))
         }
-        fitList=mclapply(c(1:length(fits$fits)),parFun, mc.cores=detectCores())
+        fitList=mclapply(c(1:length(fits$fits)),parFun, mc.cores=numCores)
+        if(length(fitList)!=length(fits$fits)){
+            print(paste("Parallel processing has resulted in dropped values, try again with a value of numCores smaller than",numCores))
+            return(FALSE)
+        }
         for(j in 1:length(fits$fits)){
             fits$fits[[j]]$fit=fitList[[j]]
         }
     }
     return(fits)
+}
+
+forceNonFlatFits=function(fits,minRise=0.3,numCores=-1){
+    notDone=fits
+    fixedFits=fits
+    fixedFits$fits=list()
+    for(rise in seq(from=fits$CPMaxF,to=1,by=fits$CPMaxF)){
+        print(paste("CPMaxF=",rise,sep=""))
+        notDone$CPMaxF=rise
+        newFits=fixFlatFits(notDone,minRise,FALSE,numCores)
+        notDone=newFits
+        doneIndices=c()
+        for(i in 1:length(notDone$fits)){
+            fit=notDone$fits[[i]]
+            curves=fit$fit$curves
+            measured=curves[curves$curve=="measured",]$F
+            model=curves[curves$curve=="model",]$F
+            if((max(model)/max(measured))>=minRise){
+                                        #Done!
+                fixedFits$fits[[length(fixedFits$fits)+1]]=notDone$fits[[i]]
+                doneIndices=c(doneIndices,i)
+            }
+        }
+        notDone$fits=notDone$fits[-1*doneIndices]
+        if(length(notDone$fits)<1){
+            break
+        }
+    }
+    return(fixedFits)
 }
 
 extractTimeConst=function(frame, time="t", force="force", zPos="zSensr", dwellTime="dwell", debug=FALSE){
@@ -481,10 +553,15 @@ extractTimeConst=function(frame, time="t", force="force", zPos="zSensr", dwellTi
     }
     ret=getDwell(frame,frame[1,dwellTime],zPos,force,time)
     decayData=data.frame(t=ret[,time]-ret[1,time],F=ret[,force],FZero=ret[1,force],zPos=ret[,zPos])
-    decayFit=nls("F ~ (FZero-C)*exp(-1*t*tau) + C",decayData,start=c(tau=1,C=.1,FZero=1),control=nls.control(warnOnly=TRUE))
-    fitData=data.frame(residual=sum(residuals(decayFit)^2),tau=as.numeric(coef(decayFit)["tau"]),C=as.numeric(coef(decayFit)["C"]),converged=decayFit$convInfo$isConv)
+    if(debug){
+        print("residual: tau1 tau2 A C")
+    }
+    decayFit=nls("F ~ (FZero-C)*((abs(A)%%1)*exp(-1*t*tau1)+(1-(abs(A)%%1))*exp(-1*t*tau2)) + C",decayData,start=c(tau1=1,tau2=.1,A=.1,C=0),control=nls.control(warnOnly=TRUE,maxiter=100,minFactor=1/4096),trace=debug)
+    fitData=data.frame(residual=sum(residuals(decayFit)^2),tau1=as.numeric(coef(decayFit)["tau1"]),C=as.numeric(coef(decayFit)["C"]),tau2=as.numeric(coef(decayFit)["tau2"]),A=as.numeric(coef(decayFit)["A"]),converged=decayFit$convInfo$isConv)
+
     measured=data.frame(t=decayData$t,F=decayData$F,curve="measured")
-    model=data.frame(t=decayData$t,F=(ret[1,force]-fitData$C)*exp(-1*decayData$t*fitData$tau)+fitData$C,curve="model")
+
+    model=data.frame(t=decayData$t,F=(ret[1,force]-fitData$C)*(fitData$A*exp(-1*decayData$t*fitData$tau1)+(1-fitData$A)*exp(-1*decayData$t*fitData$tau2))+fitData$C,curve="model")
     if(debug){
         p=ggplot(rbind(measured,model))+geom_path(aes(x=t,y=F,color=curve))
         print(p)
@@ -498,9 +575,10 @@ parExtractTimeConst=function(cases, time="t", force="force", zPos="zSensr", dwel
                                         #This function extracts the viscous time constants from the curves contained in cases (which should be constructed using identIterate()). Time, force, zPos, and dwell are the names for the columns corresponding to the time, force, indentation and dwell data in the original data frame. Default values correspond to those in data imported using loadIBW, batchLoad() and quickLoad(). numCores is the number of cores to use in order to do the calculation (if -1 is used, the function will use all available cores). Setting debug to TRUE causes the function to plot each fit (the user should press 'enter' to cycle through fits) in order to allow for tuning of fit parameters.
     library(parallel)
     if(numCores<0){
-        numCores=detectCores()
+        numCores=detectCores()-1 #Default to giving R a bonus core to play with
     }
     parFun=function(case){
+    	print(case$ident)
         toReturn=extractTimeConst(case$data, time, force, zPos, dwell, debug)
         return(list(fit=toReturn,ident=case$ident))
     }
@@ -518,4 +596,54 @@ parExtractTimeConst=function(cases, time="t", force="force", zPos="zSensr", dwel
     }
     return(list(fits=fits, time=time, force=force, zPos=zPos))
     
+}
+
+extractApproachAdhesion=function(case,percentFlat=0.8){
+    curve=stripRet(case$data,"zSensr")
+    minIndex=which.min(curve$force)
+    curve=curve[1:minIndex,]
+    curve$index=c(1:dim(curve)[1])
+    approachFit=lm(force~index,curve[1:floor(dim(curve)[1]*percentFlat),])
+    ## print("min force")
+    ## print(curve$force[minIndex])
+    ## print("baseline")
+    ## print(as.numeric(coef(approachFit)[1]+coef(approachFit)[2]*minIndex))
+    return(as.numeric(coef(approachFit)[1]+coef(approachFit)[2]*minIndex-curve$force[minIndex]))
+}
+
+extractRetractionAdhesion=function(case,percentFlat=0.8){
+    curve=stripApr(case$data,"zSensr")
+		## plot(curve$zSensr,curve$force)
+    minIndex=which.min(curve$force)
+    curve=curve[(-1):(-minIndex+1),]
+    minIndex=1
+    curve$index=c(1:dim(curve)[1])
+    retractionFit=lm(force~index,curve[floor(dim(curve)[1]*(1-percentFlat)):dim(curve)[1],])
+   		## print("min force")
+   		## print(curve$force[minIndex])
+   		## print("baseline")
+   		## print(as.numeric(coef(approachFit)[1]+coef(approachFit)[2]*minIndex))
+    return(as.numeric(coef(retractionFit)[1]+coef(retractionFit)[2]*minIndex-curve$force[minIndex]))
+}
+
+parExtractApproachAdhesion=function(cases,percentFlat=0.8,numCores=-1){
+    library(parallel)
+    if(numCores<0){
+        numCores=detectCores()-1 #Default to giving R a bonus core to play with
+    }
+    oneArgFun=function(c){
+        return(extractApproachAdhesion(c,percentFlat))
+    }
+    return(mclapply(cases,oneArgFun,mc.cores=numCores))
+}
+
+parExtractRetractionAdhesion=function(cases,percentFlat=0.8,numCores=-1){
+    library(parallel)
+    if(numCores<0){
+        numCores=detectCores()-1 #Default to giving R a bonus core to play with
+    }
+    oneArgFun=function(c){
+        return(extractRetractionAdhesion(c,percentFlat))
+    }
+    return(mclapply(cases,oneArgFun,mc.cores=numCores))
 }
