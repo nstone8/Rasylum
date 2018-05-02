@@ -5,7 +5,7 @@
   Extract only the dwell from a force curve.
 }
 \usage{
-getDwell(frame,dwellTime,zPos,F,t)
+getDwell(frame,dwellTime,zPos,F,t,extraTrim=0)
 }
 \arguments{
   \item{frame}{The data.frame containing the force curve to be trimmed,
@@ -16,7 +16,10 @@ getDwell(frame,dwellTime,zPos,F,t)
     position data}
   \item{F}{The name of the column in \code{frame} containing the force
     data}
-  \item{t}{The name of the column in \code{frame} containing the time data}
+  \item{t}{The name of the column in \code{frame} containing the time
+    data}
+  \item{extraTrim}{Percentage of dwell time to trim off the end of the
+    dwell curve}
 }
 % add \details
 \value{

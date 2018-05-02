@@ -1,6 +1,6 @@
-extractTimeConst=function(frame, time="t", force="force", zPos="zSensr", dwellTime="dwell", debug=FALSE){
+extractTimeConst=function(frame, time="t", force="force", zPos="zSensr", dwellTime="dwell", debug=FALSE, extraTrim=0){
                                         #frame is the raw data for the compression as produced by the loadIBW function. time, force, zPos and dwellTime are the names of the columns of frame which contain the time, force, indentation, and dwellTime data. Defaults correspond to the values used in data imported using loadIBW, batchLoad and quickLoad. Setting debug to TRUE causes the function to plot each fit (the user should press 'enter' to cycle through fits) in order to allow for tuning of fit parameters.
-    ret=getDwell(frame,frame[1,dwellTime],zPos,force,time)
+    ret=getDwell(frame,frame[1,dwellTime],zPos,force,time,extraTrim)
     decayData=data.frame(t=ret[,time]-ret[1,time],F=ret[,force],FZero=ret[1,force],zPos=ret[,zPos])
     if(debug){
         print("residual: tau1 tau2 A C")

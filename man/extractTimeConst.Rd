@@ -8,8 +8,9 @@
 }
 \usage{
 extractTimeConst(frame, time="t", force="force",
-zPos="zSensr",dwellTime="dwell", debug=FALSE)
-parExtractTimeConst(cases, time="t", force="force", zPos="zSensr", dwell="dwell", debug=FALSE, numCores=-1)
+zPos="zSensr",dwellTime="dwell", debug=FALSE, extraTrim=0)
+parExtractTimeConst(cases, time="t", force="force", zPos="zSensr",
+dwell="dwell", debug=FALSE, numCores=-1, extraTrim=0)
 }
 \arguments{
   \item{frame}{A data.frame containing the force curve of interest}
@@ -25,6 +26,8 @@ parExtractTimeConst(cases, time="t", force="force", zPos="zSensr", dwell="dwell"
     should press 'enter' at the command prompt to cycle through the
     fits. This functionality is intended to be used for tuning of fit
     parameters}
+  \item{extraTrim}{Percentage of dwell time to trim off the end of the
+    dwell curve}
   \item{numCores}{Number of cores to use for the computation. If
     \code{numCores}==-1 all available cores will be used}
 }
