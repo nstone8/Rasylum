@@ -148,11 +148,12 @@ getDataSections=function(nameIndices,byteStream,channels){
             dFrame=cbind(dFrame,data.frame(dataVectors[[i]]))
         }
         names(dFrame)=channels
+        dFrame=dFrame[1:(dim(dFrame)[1]-1),] #Last point seems to be garbage, not sure why
         if(any(is.na(dFrame))){
-            warning("A parsing error may have occured, please check data integrity")
+            warning(paste("A parsing error may have occured for",thisName,"please check data integrity"))
         }
-        pointNames=c(thisName,pointNames)
-        allPoints[[allPointsIndex]]=dFrame[1:(dim(dFrame)[1]-1),] #Last point seems to be garbage, not sure why
+        pointNames=c(pointNames,thisName)
+        allPoints[[allPointsIndex]]=dFrame
         allPointsIndex=allPointsIndex+1
     }
     names(allPoints)=pointNames
