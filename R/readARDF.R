@@ -1,4 +1,4 @@
-read.ardw=function(filename){
+read.ardf=function(filename){
     textHex=c(0x54,0x45,0x58,0x54)
     channelHex=c(0x56,0x43,0x48,0x4e) 
     nameHex=c(0x56,0x4e,0x41,0x4d)
@@ -148,7 +148,9 @@ getDataSections=function(nameIndices,byteStream,channels){
             dFrame=cbind(dFrame,data.frame(dataVectors[[i]]))
         }
         names(dFrame)=channels
-        
+        if(any(is.na(dFrame))){
+            warning("A parsing error may have occured, please check data integrity")
+        }
         pointNames=c(thisName,pointNames)
         allPoints[[allPointsIndex]]=dFrame[1:(dim(dFrame)[1]-1),] #Last point seems to be garbage, not sure why
         allPointsIndex=allPointsIndex+1
