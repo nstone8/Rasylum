@@ -111,10 +111,8 @@ getDataSections=function(nameIndices,byteStream,channels){
             }else if(all(byteStream[currentIndex:(currentIndex+3)]==dataHex)){
                                         #now skip to the end of VDAT
                 currentIndex=currentIndex+4
-                                        #Now find the next set of 3 non-null bytes in a row, this is the start of our data
-                while(any(byteStream[currentIndex:(currentIndex+3)]==0x00)){
-                currentIndex=currentIndex+1
-            }
+                                        #skip 44 bytes to start of data
+                currentIndex=currentIndex+44
                                         #Now slurp up bytes until the terminationSequence
                 dataBytes=readToSequence(byteStream,currentIndex,terminationSequence,maxIndex)
                 convertedData=readBin(dataBytes,"double",length(dataBytes),4)
