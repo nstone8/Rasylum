@@ -33,7 +33,7 @@ stiffnessSphereOnPlane=function(rBead, extZ, extForce, CPMaxF=.05, percentToFit=
         
         contactData=data.frame(indent=extZ[i:(i+fitLength-1)]-extZ[i],F=extForce[i:(i+fitLength-1)]-extForce[i],r=rep(rBead,times=fitLength))
         if(all(contactData$indent>=0)){
-            result=nls(eq,contactData,control=nls.control(warnOnly=TRUE))
+            result=nls(eq,contactData,start=c(EStar=1),control=nls.control(warnOnly=TRUE))
             curRow=curRow+1
             fits[curRow,contactIndex:=i]
             fits[curRow,contactPos:=extZ[i]]

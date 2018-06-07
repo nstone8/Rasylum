@@ -35,15 +35,21 @@ findLocalMinima=function(vec, roughness,Q){
         for(j in 2:(length(indices)+1)){
                                         #define sharpness as the maximum 'angle to horizon' seen on the shallowest side of the trough
 
-            leftSide=vec[checkPoints[j-1]:checkPoints[j]]/(max(vec)-min(vec))
-            rightSide=vec[checkPoints[j]:checkPoints[j+1]]/(max(vec)-min(vec))
+            leftSide=vec[checkPoints[j-1]:(checkPoints[j]-1)]/(max(vec)-min(vec))
+            rightSide=vec[(checkPoints[j]+1):checkPoints[j+1]]/(max(vec)-min(vec))
             normVec=vec/(max(vec)-min(vec))
-            leftDist=c(length(leftSide):0)/length(vec)
-            rightDist=c(0:length(rightSide))/length(vec)
+            leftDist=c(length(leftSide):1)/length(vec)
+            rightDist=c(1:length(rightSide))/length(vec)
 
             
             leftSlope=(leftSide/leftDist)[(leftSide-normVec[checkPoints[j]])>roughness]
             rightSlope=(rightSide/rightDist)[(rightSide-normVec[checkPoints[j]])>roughness]
+            if(length(leftSlope)<1){
+                leftSlope=0
+            }
+            if(length(rightSlope)<1){
+                rightSlope=0
+            }
             sharpness=min(max(rightSlope),max(leftSlope))
             
             if(sharpness>Q){
