@@ -5,5 +5,10 @@ parExtractApproachAdhesion=function(cases,percentFlat=0.8,numCores=-1){
     oneArgFun=function(c){
         return(extractApproachAdhesion(c,percentFlat))
     }
-    return(mclapply(cases,oneArgFun,mc.cores=numCores))
+    adhesion=unlist(mclapply(cases,oneArgFun,mc.cores=numCores))
+    idents=c()
+    for(case in cases){
+        idents=rbind(idents,case$ident)
+    }
+    return(cbind(idents,data.frame(Adhesion=adhesion)))
 }
