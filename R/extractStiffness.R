@@ -46,6 +46,10 @@ extractStiffness=function(case,r,approachLength=.1,contactLength=.1,searchWidth=
 #        allFits=c(allFits,fits)
         allError=c(allError,totalError)
     }
+    locationInWindow=(contactPoint$cpIndex-cpToCheck[1])/length(cpToCheck) #location of the best fit inside the search width in terms of percent of the search width
+    if(locationInWindow<.25 || locationInWindow>.75){
+        warning("Best fit is near the edge of the search width. Consider increasing searchWidth")
+    }
     correctedData=data.frame(F=data$force-contactPoint$force,zPos=data$zSensr-contactPoint$zSensr)
     modelZPos=correctedData$zPos[contactPoint$cpIndex:dim(correctedData)[1]]
     modelForce=(4/3)*coef(bestFit$nonLinear)["EStar"]*(r^(1/2))*(modelZPos^(3/2))
