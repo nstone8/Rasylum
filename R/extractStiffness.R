@@ -1,4 +1,4 @@
-extractStiffness=function(case,r,approachLength=.1,contactLength=.1,searchWidth=.2,maxF=.5,weight=4,zPos="zSensr",force="force"){
+extractStiffness=function(case,r,approachLength=.1,contactLength=.1,searchWidth=.2,maxF=.5,weight=4,correctVirtDefl=TRUE,zPos="zSensr",force="force"){
     eq="F~(4/3)*EStar*(r^(1/2))*indent^(3/2)"
                                         #First fit a line to the approach section of the curve and to the end and find their intersection, this will be our rough contact point
     data=data.frame(zSensr=case$data[,zPos],force=case$data[,force])
@@ -16,7 +16,13 @@ extractStiffness=function(case,r,approachLength=.1,contactLength=.1,searchWidth=
     endContact=trimmedData[trimmedDataLength,]
     approxE=(3/4)*(endContact$force-fIntercept)*((endContact$zSensr-zIntercept)^(-3/2))*((r)^(-.5))
 
-                                        #    contactFit=nls(roughEq,contactData,start=c(A=approxA,z0=zIntercept,F0=fIntercept),control=nls.control(warnOnly=TRUE,maxiter=1000,minFactor=1/1000000))
+                                        #Correct for virtual deflection by subtracting the approachFit line from the force data
+    if(correctVirtDefl){
+        virtDeflForce=coef(approachFit)["zSensr"]*data$zSensr+coef(approachFit)[1]
+        data$force=data$force-virtDeflForce
+        trimmedData$force=trimmedData$force-virtDeflForce[1:trimmedDataLength]
+    }
+    
     nominalCPIndex=which.min(abs(trimmedData$zSensr-zIntercept))
     startIndex=nominalCPIndex-floor(searchWidth*trimmedDataLength)
     stopIndex=nominalCPIndex+floor(searchWidth*trimmedDataLength)
