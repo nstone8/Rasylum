@@ -1,6 +1,5 @@
 \name{stiffnessSphereOnPlane}
 \alias{stiffnessSphereOnPlane}
-\alias{parExtractStiffness}
 \title{Extract Sample Stiffness From Force Curves}
 \description{
   Perform a fit of force curves to a Hertzian contact model to estimate
