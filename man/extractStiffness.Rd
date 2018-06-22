@@ -23,9 +23,10 @@ parExtractStiffness(cases,r,approachLength=.1,contactLength=.1,
     assumed not to be in contact with the sample}
   \item{contactLength}{Percent of the approach curve that can be safely
     assumed to be in contact with the sample}
-  \item{searchWidth}{Percent of the curve around a rough guess to search
-    for the contact point. A warning will be triggered if the contact
-    point is not detected in the middle 50 percent of this range}
+  \item{searchWidth}{Percent of the curve on either side of a rough
+    guess to search for the contact point. A warning will be triggered
+    if the contact point is not detected in the middle 50 percent of
+    this range}
   \item{maxF}{Upper bound on fit region, in terms of percentage of the
     maximum force}
   \item{weight}{Relative weight to apply to the residual of the linear

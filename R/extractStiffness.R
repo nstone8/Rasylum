@@ -27,7 +27,8 @@ extractStiffness=function(case,r,approachLength=.1,contactLength=.1,searchWidth=
     startIndex=nominalCPIndex-floor(searchWidth*trimmedDataLength)
     stopIndex=nominalCPIndex+floor(searchWidth*trimmedDataLength)
     startIndex=max(startIndex,1)
-    stopIndex=min(stopIndex,trimmedDataLength-10) #make sure there are enough points for the last putative cp to converge
+    maxStop=trimmedDataLength-10 #make sure there are enough points for the last putative cp to converge
+    stopIndex=min(stopIndex,maxStop) 
     cpToCheck=c(startIndex:stopIndex)
     bestFit=list()
     lowestError=Inf
@@ -53,7 +54,7 @@ extractStiffness=function(case,r,approachLength=.1,contactLength=.1,searchWidth=
         allError=c(allError,totalError)
     }
     locationInWindow=(contactPoint$cpIndex-cpToCheck[1])/length(cpToCheck) #location of the best fit inside the search width in terms of percent of the search width
-    if(locationInWindow<.25 || locationInWindow>.75){
+    if((locationInWindow<.25 || locationInWindow>.75)&&(!(startIndex==1 && contactPoint$cpIndex<nominalCPIndex))&&(!(stopIndex==maxStop && contactPoint$cpIndex>nominalCPIndex))){ #Don't throw warning if search window is already pegged out, because increasing searchWidth won't do anything
         warning("Best fit is near the edge of the search width. Consider increasing searchWidth")
     }
     correctedData=data.frame(F=data$force-contactPoint$force,zPos=data$zSensr-contactPoint$zSensr)
