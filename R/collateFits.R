@@ -3,7 +3,7 @@ collateFits=function(fitData){
     allFits=list()
     allFits[[1]]=cbind(fitData$fits[[1]]$fit$fit,fitData$fits[[1]]$ident)
     numFits=length(fitData$fits)
-    if(numFits>1)){
+    if(numFits>1){
         for(f in 2:numFits){        
             allFits[[f]]=cbind(fitData$fits[[f]]$fit$fit,fitData$fits[[f]]$ident)
         }
