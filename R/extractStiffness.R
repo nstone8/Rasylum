@@ -34,24 +34,27 @@ extractStiffness=function(case,r,approachLength=.1,contactLength=.1,searchWidth=
     lowestError=Inf
     contactPoint=c()
     allError=c()
-    iteration=1
     for(cpIndex in cpToCheck){
-        iteration=iteration+1
         fitData=data.frame(F=trimmedData$force-trimmedData$force[cpIndex],indent=trimmedData$zSensr-trimmedData$zSensr[cpIndex],r=r)
         linearRegion=fitData[1:cpIndex,]
         nonLinearRegion=fitData[cpIndex:trimmedDataLength,]
-        linearFit=lm("F~indent",linearRegion)
-        nonLinearFit=nls(eq,nonLinearRegion,start=c(EStar=approxE),control=nls.control(warnOnly=TRUE))
-        totalError=weight*sum(residuals(linearFit)^2)+sum(residuals(nonLinearFit)^2)
-        if(totalError<lowestError){
-            lowestError=totalError
-            fits=list(nonLinear=nonLinearFit,linear=linearFit)
+        fitList=tryCatch({ #If one of the fits throws an error, treat it as a fit with infinite residual
+            linearFit=lm("F~indent",linearRegion)
+            nonLinearFit=nls(eq,nonLinearRegion,start=c(EStar=approxE),control=nls.control(warnOnly=TRUE))            
+            totalError=weight*sum(residuals(linearFit)^2)+sum(residuals(nonLinearFit)^2)
+            return(list(linear=linearFit,nonLinear=nonLinearFit,totalError=totalError))
+        },error=function(e){
+            return(list(linear=NA,nonLinear=NA,totalError=Inf))
+        })
+        if(fitList$totalError<lowestError){
+            lowestError=fitList$totalError
+            fits=list(nonLinear=fitList$nonLinear,linear=fitList$linear)
             bestFit=fits
             contactPoint=trimmedData[cpIndex,c("zSensr","force")]
             contactPoint=cbind(contactPoint,data.frame(cpIndex=cpIndex))
         }
 #        allFits=c(allFits,fits)
-        allError=c(allError,totalError)
+        allError=c(allError,fitList$totalError)
     }
     locationInWindow=(contactPoint$cpIndex-cpToCheck[1])/length(cpToCheck) #location of the best fit inside the search width in terms of percent of the search width
     if((locationInWindow<.25 && (!startIndex==1)) || (locationInWindow>.75 &&(!stopIndex==maxStop))){ #Don't throw warning if search window is already pegged out, because increasing searchWidth won't do anything
