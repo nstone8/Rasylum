@@ -27,7 +27,7 @@ extractStiffness=function(case,r,approachLength=.1,contactLength=.1,searchWidth=
     startIndex=nominalCPIndex-floor(searchWidth*trimmedDataLength)
     stopIndex=nominalCPIndex+floor(searchWidth*trimmedDataLength)
     startIndex=max(startIndex,1)
-    maxStop=trimmedDataLength-10 #make sure there are enough points for the last putative cp to converge
+#    maxStop=trimmedDataLength-10 #make sure there are enough points for the last putative cp to converge
     stopIndex=min(stopIndex,maxStop) 
     cpToCheck=c(startIndex:stopIndex)
     bestFit=list()
@@ -42,7 +42,7 @@ extractStiffness=function(case,r,approachLength=.1,contactLength=.1,searchWidth=
             linearFit=lm("F~indent",linearRegion)
             nonLinearFit=nls(eq,nonLinearRegion,start=c(EStar=approxE),control=nls.control(warnOnly=TRUE))            
             totalError=weight*sum(residuals(linearFit)^2)+sum(residuals(nonLinearFit)^2)
-            return(list(linear=linearFit,nonLinear=nonLinearFit,totalError=totalError))
+            list(linear=linearFit,nonLinear=nonLinearFit,totalError=totalError)
         },error=function(e){
             return(list(linear=NA,nonLinear=NA,totalError=Inf))
         })
