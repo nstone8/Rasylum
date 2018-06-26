@@ -27,7 +27,8 @@ extractStiffness=function(case,r,approachLength=.1,contactLength=.1,searchWidth=
     startIndex=nominalCPIndex-floor(searchWidth*trimmedDataLength)
     stopIndex=nominalCPIndex+floor(searchWidth*trimmedDataLength)
     startIndex=max(startIndex,1)
-#    maxStop=trimmedDataLength-10 #make sure there are enough points for the last putative cp to converge
+                                        #    maxStop=trimmedDataLength-10 #make sure there are enough points for the last putative cp to converge
+    maxStop=trimmedDataLength
     stopIndex=min(stopIndex,maxStop) 
     cpToCheck=c(startIndex:stopIndex)
     bestFit=list()
