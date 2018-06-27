@@ -57,6 +57,14 @@ extractStiffness=function(case,r,approachLength=.1,contactLength=.1,searchWidth=
 #        allFits=c(allFits,fits)
         allError=c(allError,fitList$totalError)
     }
+    if(lowestError==Inf){
+        thisIdent=""
+        for(part in case$ident){
+            thisIdent=paste(thisIdent,part) #change to remove extra space in warning message
+        }
+        warning(paste("No fit found for",thisIdent,"Check that curves and fitting parameters are reasonable"))
+        return(NA)
+    }
     locationInWindow=(contactPoint$cpIndex-cpToCheck[1])/length(cpToCheck) #location of the best fit inside the search width in terms of percent of the search width
     if((locationInWindow<.25 && (!startIndex==1)) || (locationInWindow>.75 &&(!stopIndex==maxStop))){ #Don't throw warning if search window is already pegged out, because increasing searchWidth won't do anything
         warning("Best fit is near the edge of the search width. Consider increasing searchWidth")
