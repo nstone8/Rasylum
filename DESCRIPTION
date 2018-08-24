@@ -1,0 +1,13 @@
+Package: Rasylum
+Version: 0.3.7
+Date: 2018-06-18
+Title: Rasylum: AFM Data Analysis in R
+Authors@R: c(person("Nicholas", "Stone", role = c("aut", "cre"),
+                     email = "stone.nicholas@gmail.com"),
+              person("Katie", "Young", role = "aut"))
+Maintainer: Nicholas Stone <stone.nicholas@gmail.com>
+Depends: R (>= 3.0.0), data.table, ggplot2, IgorR, parallel
+Description: R functions for reading and analyzing data produced by
+ Asylum atomic force microscopes.
+License: GPL-3
+URL: https://github.com/nstone8/Rasylum
