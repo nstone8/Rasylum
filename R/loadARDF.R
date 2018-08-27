@@ -10,7 +10,7 @@ loadARDF=function(ardf){
     pointNo=1
     totalNumRows=0
     for(p in 1:length(mapPoints)){
-        print(paste(pointNo/length(mapPoints)*100,"% complete",sep=""))
+        message(paste(pointNo/length(mapPoints)*100,"% complete",sep=""))
         pointNo=pointNo+1 
         vars=c()                                  
         vars[1]=substr(mapPoints[p],5,8) 	#Get the four digit line number 

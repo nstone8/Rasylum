@@ -5,7 +5,7 @@ read.ardf=function(filename){
     f=file(filename,open="rb")
     fInfo=file.info(filename)
     byteStream=readBin(f,"raw",fInfo$size)
-    print("Loading File")
+    message("Loading File")
     close(f)
                                         #search for TEXT tag
     textTagIndices=c()
@@ -27,7 +27,7 @@ read.ardf=function(filename){
 }
 
 getTextSections=function(textTagIndices,byteStream){
-    print("Reading Headers")
+    message("Reading Headers")
     textSections=list()
     for(index in textTagIndices){
         thisText=c()
@@ -85,7 +85,7 @@ getDataSections=function(nameIndices,byteStream,channels){
         nameBytes=readToSequence(byteStream,currentIndex,c(0x00,0x00))
         currentIndex=currentIndex+length(nameBytes)
         thisName=rawToChar(nameBytes)
-        print(thisName)
+        message(thisName)
         dataVectors=list()
         dataVectorIndex=1
 
@@ -122,7 +122,7 @@ getDataSections=function(nameIndices,byteStream,channels){
 
             }else if(currentIndex>length(byteStream)){
                 #We've read to the end of the file
-                print("EOF")
+                message("EOF")
                 break
             }else{
                 stop("This shouldn't happen")
