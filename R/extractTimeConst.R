@@ -14,7 +14,7 @@ extractTimeConst=function(frame, time="t", force="force", zPos="zSensr", dwellTi
         print("residual: tau1 tau2 A C")
     }
     decayFit=nls("F ~ (FZero-C)*((abs(A)%%1)*exp(-1*t*tau1)+(1-(abs(A)%%1))*exp(-1*t*tau2)) + C",decayData,start=c(tau1=tau1guess,tau2=tau2guess,A=aGuess,C=cGuess),control=nls.control(warnOnly=TRUE,maxiter=1000,minFactor=1/4096),trace=debug)
-    fitData=data.frame(residual=sum(residuals(decayFit)^2),tau1=as.numeric(coef(decayFit)["tau1"]),C=as.numeric(coef(decayFit)["C"]),tau2=as.numeric(coef(decayFit)["tau2"]),A=as.numeric(coef(decayFit)["A"]),converged=decayFit$convInfo$isConv)
+    fitData=data.frame(residual=sum(residuals(decayFit)^2),tau1=as.numeric(coef(decayFit)["tau1"]),C=as.numeric(coef(decayFit)["C"]),tau2=as.numeric(coef(decayFit)["tau2"]),A=abs(as.numeric(coef(decayFit)["A"]))%%1,converged=decayFit$convInfo$isConv)
     if(debug){
 	print(paste("converged=",fitData$converged))
 	print(fitData)
