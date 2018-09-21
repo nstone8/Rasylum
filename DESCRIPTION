@@ -1,5 +1,5 @@
 Package: Rasylum
-Version: 0.3.7
+Version: 0.4.0
 Date: 2018-06-18
 Title: Rasylum: AFM Data Analysis in R
 Authors@R: c(person("Nicholas", "Stone", role = c("aut", "cre"),
