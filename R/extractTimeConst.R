@@ -3,24 +3,33 @@ extractTimeConst=function(frame, time="t", force="force", zPos="zSensr", dwellTi
     ret=getDwell(frame,frame[1,dwellTime],zPos,force,time,extraTrim)
     decayData=data.frame(t=ret[,time]-ret[1,time],F=ret[,force],FZero=ret[1,force],zPos=ret[,zPos])
     cGuess=decayData$F[length(decayData$F)]
-    #aGuess=decayData$F[1]-cGuess
+                                        #aGuess=decayData$F[1]-cGuess
     aGuess=0.9
     eThreshold=decayData$FZero[1]-.63*(decayData$FZero[1]-cGuess) #Point where force has decayed by 1/e
     eTime=decayData[decayData$F<eThreshold,]$t[1] #time where force has decayed by 1/e
     tau1guess=1/eTime
     tau2guess=tau1guess*.1
-    #print(paste("cGuess=",cGuess,"aGuess=",aGuess,"tau1guess=",tau1guess,"tau2guess=",tau2guess,"F0=",decayData$FZero[1]))
+                                        #print(paste("cGuess=",cGuess,"aGuess=",aGuess,"tau1guess=",tau1guess,"tau2guess=",tau2guess,"F0=",decayData$FZero[1]))
     if(debug){
         print("residual: tau1 tau2 A C")
     }
-    decayFit=nls("F ~ (FZero-C)*((abs(A)%%1)*exp(-1*t*tau1)+(1-(abs(A)%%1))*exp(-1*t*tau2)) + C",decayData,start=c(tau1=tau1guess,tau2=tau2guess,A=aGuess,C=cGuess),control=nls.control(warnOnly=TRUE,maxiter=1000,minFactor=1/4096),trace=debug)
-    fitData=data.frame(residual=sum(residuals(decayFit)^2),tau1=as.numeric(coef(decayFit)["tau1"]),C=as.numeric(coef(decayFit)["C"]),tau2=as.numeric(coef(decayFit)["tau2"]),A=abs(as.numeric(coef(decayFit)["A"]))%%1,converged=decayFit$convInfo$isConv)
+                                        #Treat any fit with errors as unconverged with zeros for all parameters
+    fitData=tryCatch({
+        decayFit=nls("F ~ (FZero-C)*((abs(A)%%1)*exp(-1*t*tau1)+(1-(abs(A)%%1))*exp(-1*t*tau2)) + C",decayData,start=c(tau1=tau1guess,tau2=tau2guess,A=aGuess,C=cGuess),control=nls.control(warnOnly=TRUE,maxiter=1000,minFactor=1/4096),trace=debug)
+        data.frame(residual=sum(residuals(decayFit)^2),tau1=as.numeric(coef(decayFit)["tau1"]),C=as.numeric(coef(decayFit)["C"]),tau2=as.numeric(coef(decayFit)["tau2"]),A=abs(as.numeric(coef(decayFit)["A"]))%%1,converged=decayFit$convInfo$isConv)
+    },error=function(e){
+        return(data.frame(residual=Inf,tau1=0,C=0,tau2=0,A=0,converged=FALSE))
+    })
     aGuess=aGuess-0.1
     while((!fitData$converged) && aGuess>0){
-        #Try different values of aGuess until we achieve convergence
-      decayFit=nls("F ~ (FZero-C)*((abs(A)%%1)*exp(-1*t*tau1)+(1-(abs(A)%%1))*exp(-1*t*tau2)) + C",decayData,start=c(tau1=tau1guess,tau2=tau2guess,A=aGuess,C=cGuess),control=nls.control(warnOnly=TRUE,maxiter=1000,minFactor=1/4096),trace=debug)
-      fitData=data.frame(residual=sum(residuals(decayFit)^2),tau1=as.numeric(coef(decayFit)["tau1"]),C=as.numeric(coef(decayFit)["C"]),tau2=as.numeric(coef(decayFit)["tau2"]),A=abs(as.numeric(coef(decayFit)["A"]))%%1,converged=decayFit$convInfo$isConv)
-      aGuess=aGuess-0.1
+                                        #Try different values of aGuess until we achieve convergence
+        fitData=tryCatch({
+            decayFit=nls("F ~ (FZero-C)*((abs(A)%%1)*exp(-1*t*tau1)+(1-(abs(A)%%1))*exp(-1*t*tau2)) + C",decayData,start=c(tau1=tau1guess,tau2=tau2guess,A=aGuess,C=cGuess),control=nls.control(warnOnly=TRUE,maxiter=1000,minFactor=1/4096),trace=debug)
+            data.frame(residual=sum(residuals(decayFit)^2),tau1=as.numeric(coef(decayFit)["tau1"]),C=as.numeric(coef(decayFit)["C"]),tau2=as.numeric(coef(decayFit)["tau2"]),A=abs(as.numeric(coef(decayFit)["A"]))%%1,converged=decayFit$convInfo$isConv)
+        },error=function(e){
+            return(data.frame(residual=Inf,tau1=0,C=0,tau2=0,A=0,converged=FALSE))
+        })
+        aGuess=aGuess-0.1
     }
     if(debug){
 	print(paste("converged=",fitData$converged))
