@@ -14,9 +14,12 @@ parExtractApproachAdhesion(cases,percentFlat=0.8,numCores=-1)
 parExtractRetractionAdhesion(cases,percentFlat=0.8,numCores=-1)
 }
 \arguments{
-  \item{case}{A force curve as produced by loadIBW}
+  \item{case}{A force curve case (one element of the list produced by
+    \code{loadPreSorted})}
   \item{percentFlat}{The percentage of the approach or retraction curve
     before contact that can be considered flat}
+  \item{cases}{A list of force curve cases such as that produced by
+    \code{loadPreSorted}}
   \item{numCores}{Number of cores to use for the computation. If
     \code{numCores}==-1 all available cores will be used}
 }
