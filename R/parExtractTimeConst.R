@@ -20,6 +20,10 @@ parExtractTimeConst=function(cases, time="t", force="force", zPos="zSensr", dwel
         print(paste("Not enough RAM for all cores, try again with numCores<",numCores,sep=""))
         return(FALSE)
     }
+    testFun=function(case){
+	return(class(case)!="try-error")
+    }
+    fits=Filter(testFun,fits)
     return(list(fits=fits, time=time, force=force, zPos=zPos))
     
 }

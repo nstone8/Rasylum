@@ -12,7 +12,10 @@ parExtractStiffness=function(cases,r,approachLength=.1,contactLength=.1,searchWi
     if(length(fits)!=length(cases)){
         stop(paste("Parallel processing has resulted in dropped values, try again with a value of numCores smaller than",numCores))
     }
-
+    testFun=function(case){
+	return(class(case)!="try-error")
+    }
+    fits=Filter(testFun,fits)
     toReturn=list(fits=fits,r=r,approachLength=approachLength,contactLength=contactLength,searchWidth=searchWidth,maxF=maxF,weight=weight,correctVirtDefl=correctVirtDefl,zPos=zPos,force=force)
 
     return(toReturn)
